@@ -26,7 +26,14 @@ app.use('/api/documentos', documentoRoutes);
 app.use('/api/generador',  generadorRoutes);
 app.use('/api/admin',      adminRoutes);
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', version: '1.0' }));
+app.get('/api/health', (_req, res) => {
+  try {
+    require('./db').prepare('SELECT 1').get();
+    res.json({ status: 'ok', version: '2.0', db: 'ok' });
+  } catch (err) {
+    res.status(503).json({ status: 'error', db: err.message });
+  }
+});
 
 app.use((err, _req, res, _next) => {
   console.error('[Error]', err.message);

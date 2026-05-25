@@ -59,7 +59,8 @@ const Documento = {
     return this.findById(id);
   },
 
-  delete(id) {
+  // Devuelve la ruta del archivo antes de borrar (necesaria para limpiar el disco)
+  getPath(id) {
     return db.prepare('SELECT archivo_path FROM documentos WHERE id = ?').get(id)?.archivo_path;
   },
 

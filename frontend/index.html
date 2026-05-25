@@ -252,7 +252,7 @@ textarea{min-height:80px;resize:vertical;}
         </div>
       </div>
       <!-- Modal nueva carpeta -->
-      <div id="modal-carpeta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;align-items:center;justify-content:center;">
+      <div id="modal-carpeta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;">
         <div style="background:#fff;border-radius:12px;padding:24px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
           <div style="font-weight:600;margin-bottom:16px;">Nueva carpeta</div>
           <div style="margin-bottom:12px;"><label>Nombre</label><input type="text" id="nc-nombre"></div>
@@ -289,6 +289,18 @@ textarea{min-height:80px;resize:vertical;}
             <div><label>Nombre del documento</label><input type="text" id="up-nombre"></div>
             <div><label>Código (opcional)</label><input type="text" id="up-codigo" placeholder="f-7.2-a-01"></div>
             <div><label>Carpeta</label><select id="up-carpeta"><option value="">— Sin carpeta —</option></select></div>
+            <div><label>Tipo</label>
+              <select id="up-tipo">
+                <option value="">— Detectar automáticamente —</option>
+                <option value="formato">Formato (f-)</option>
+                <option value="instruccion">Instrucción (i-)</option>
+                <option value="procedimiento">Procedimiento (p-)</option>
+                <option value="proceso">Proceso (prs-)</option>
+                <option value="proyecto">Proyecto funcional (pf-)</option>
+                <option value="anexo">Anexo</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
             <div><label>Estado</label>
               <select id="up-estado">
                 <option value="borrador">Borrador</option>

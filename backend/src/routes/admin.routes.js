@@ -11,5 +11,6 @@ router.post('/centros',                   ...sa, ctrl.createCentro);
 router.get('/centros/:id/usuarios',       ...sa, ctrl.listUsuariosCentro);
 router.post('/centros/:id/usuarios',      ...sa, ctrl.createUsuario);
 router.put('/usuarios/:id/toggle',        ...sa, ctrl.toggleUsuario);
+router.delete('/usuarios/:id',            ...sa, ctrl.deleteUsuario);
 
 module.exports = router;

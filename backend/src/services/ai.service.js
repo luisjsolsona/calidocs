@@ -67,7 +67,7 @@ FORMATO DE RESPUESTA:
 Responde ÚNICAMENTE con el contenido del documento en texto estructurado (con secciones, listas, tablas en texto plano). No incluyas explicaciones previas ni posteriores.`;
 
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
     max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   });

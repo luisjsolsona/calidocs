@@ -10,17 +10,13 @@ function listCentros(_req, res) {
 }
 
 // POST /api/admin/centros
-// Body: { nombre, codigo, ... }
 function createCentro(req, res, next) {
   try {
     const { nombre, codigo } = req.body;
     if (!nombre || !codigo) return res.status(400).json({ error: 'nombre y codigo son obligatorios' });
 
     const centro = Centro.create(req.body);
-
-    // Carga el árbol SGC estándar para el nuevo centro
     insertarArbol(db, centro.id, ARBOL_SGC);
-
     res.status(201).json(centro);
   } catch (err) {
     if (err.message?.includes('UNIQUE')) return res.status(409).json({ error: 'El código de centro ya existe' });
@@ -31,7 +27,9 @@ function createCentro(req, res, next) {
 // POST /api/admin/centros/:id/usuarios
 async function createUsuario(req, res, next) {
   try {
-    const id_centro = parseInt(req.params.id);
+    const id_centro = parseInt(req.params.id, 10);
+    if (isNaN(id_centro)) return res.status(400).json({ error: 'id de centro inválido' });
+
     const { nombre, email, password, rol } = req.body;
     if (!nombre || !email || !password || !rol)
       return res.status(400).json({ error: 'nombre, email, password y rol son obligatorios' });
@@ -51,40 +49,57 @@ async function createUsuario(req, res, next) {
 
 // GET /api/admin/centros/:id/usuarios
 function listUsuariosCentro(req, res) {
-  res.json(Usuario.findByCentro(parseInt(req.params.id)));
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
+  res.json(Usuario.findByCentro(id));
 }
 
-// PUT /api/admin/usuarios/:id/toggle — activa/desactiva usuario
+// PUT /api/admin/usuarios/:id/toggle — activa/desactiva
 function toggleUsuario(req, res) {
-  const u = db.prepare('SELECT activo FROM usuarios WHERE id = ?').get(req.params.id);
-  if (!u) return res.status(404).json({ error: 'Usuario no encontrado' });
+  const u = db.prepare('SELECT activo FROM usuarios WHERE id = ? AND rol != ?').get(req.params.id, 'superadmin');
+  if (!u) return res.status(404).json({ error: 'Usuario no encontrado o no modificable' });
   db.prepare('UPDATE usuarios SET activo = ? WHERE id = ?').run(u.activo ? 0 : 1, req.params.id);
   res.json({ activo: !u.activo });
 }
 
-// GET /api/admin/stats — estadísticas globales
-function stats(_req, res) {
-  const centros   = db.prepare('SELECT COUNT(*) as n FROM centros').get().n;
-  const usuarios  = db.prepare('SELECT COUNT(*) as n FROM usuarios WHERE activo = 1').get().n;
-  const carpetas  = db.prepare('SELECT COUNT(*) as n FROM carpetas').get().n;
+// DELETE /api/admin/usuarios/:id — elimina usuario (no se puede eliminar superadmin)
+function deleteUsuario(req, res) {
+  const u = db.prepare("SELECT id FROM usuarios WHERE id = ? AND rol != 'superadmin'").get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'Usuario no encontrado o no eliminable' });
+  db.prepare('DELETE FROM usuarios WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+}
+
+// GET /api/admin/stats — estadísticas globales con paginación de centros
+function stats(req, res) {
+  const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+  const limit = Math.min(100, parseInt(req.query.limit || '50', 10));
+  const offset = (page - 1) * limit;
+
+  const centros    = db.prepare('SELECT COUNT(*) as n FROM centros').get().n;
+  const usuarios   = db.prepare('SELECT COUNT(*) as n FROM usuarios WHERE activo = 1').get().n;
+  const carpetas   = db.prepare('SELECT COUNT(*) as n FROM carpetas').get().n;
   const documentos = db.prepare('SELECT COUNT(*) as n FROM documentos').get().n;
   const borradores = db.prepare("SELECT COUNT(*) as n FROM documentos WHERE estado='borrador'").get().n;
   const vigentes   = db.prepare("SELECT COUNT(*) as n FROM documentos WHERE estado='vigente'").get().n;
-  const generadosIA = db.prepare('SELECT COUNT(*) as n FROM documentos WHERE generado_ia=1').get().n;
+  const generadosIA= db.prepare('SELECT COUNT(*) as n FROM documentos WHERE generado_ia=1').get().n;
 
   const porCentro = db.prepare(`
     SELECT c.id, c.nombre, c.codigo,
-      COUNT(DISTINCT u.id) as num_usuarios,
-      COUNT(DISTINCT d.id) as num_documentos,
+      COUNT(DISTINCT u.id)  as num_usuarios,
+      COUNT(DISTINCT d.id)  as num_documentos,
       COUNT(DISTINCT ca.id) as num_carpetas
     FROM centros c
-    LEFT JOIN usuarios u ON u.id_centro = c.id AND u.activo = 1
-    LEFT JOIN documentos d ON d.id_centro = c.id
-    LEFT JOIN carpetas ca ON ca.id_centro = c.id
+    LEFT JOIN usuarios u  ON u.id_centro  = c.id AND u.activo = 1
+    LEFT JOIN documentos d  ON d.id_centro  = c.id
+    LEFT JOIN carpetas   ca ON ca.id_centro = c.id
     GROUP BY c.id
-  `).all();
+    ORDER BY c.nombre
+    LIMIT ? OFFSET ?
+  `).all(limit, offset);
 
-  res.json({ centros, usuarios, carpetas, documentos, borradores, vigentes, generadosIA, porCentro });
+  res.json({ centros, usuarios, carpetas, documentos, borradores, vigentes, generadosIA,
+             porCentro, page, limit, total_centros: centros });
 }
 
-module.exports = { listCentros, createCentro, createUsuario, listUsuariosCentro, toggleUsuario, stats };
+module.exports = { listCentros, createCentro, createUsuario, listUsuariosCentro, toggleUsuario, deleteUsuario, stats };
