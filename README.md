@@ -4,19 +4,24 @@ Sistema de gestión documental de calidad para institutos de Formación Profesio
 
 ---
 
-## Credenciales de acceso
+## Usuarios y datos de demostración
 
-En el primer arranque se crean automáticamente un superadmin y un centro de demostración **"IES Demo"** con un usuario por cada rol:
+En el **primer arranque** se crean automáticamente, sin ninguna acción adicional:
 
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| `superadmin` | `admin@calidocs.es` | `Admin1234!` |
-| `admin_centro` | `director@demo.es` | `Director1234!` |
-| `coordinador_calidad` | `calidad@demo.es` | `Calidad1234!` |
-| `docente` | `docente@demo.es` | `Docente1234!` |
-| `invitado` | `invitado@demo.es` | `Invitado1234!` |
+- Un **superadmin** global para administrar el sistema.
+- Un centro de demostración **"IES Demo"** con la estructura completa de carpetas SGC (ISO 9001:2015, secciones 4–8 + Anexos) ya generada.
+- Un usuario de prueba por cada rol, todos asignados al centro IES Demo.
 
-Las contraseñas se pueden cambiar en cualquier momento desde el **Panel de administración**. Para desactivar la creación de datos demo en producción, añade `SEED_DEMO=false` al `.env` antes del primer arranque.
+| Rol | Acceso a | Email | Contraseña |
+|-----|----------|-------|------------|
+| `superadmin` | Todo el sistema, todos los centros | `admin@calidocs.es` | `Admin1234!` |
+| `admin_centro` | Configuración y usuarios del centro | `director@demo.es` | `Director1234!` |
+| `coordinador_calidad` | Carpetas y documentos | `calidad@demo.es` | `Calidad1234!` |
+| `docente` | Lectura y subida de documentos | `docente@demo.es` | `Docente1234!` |
+| `invitado` | Solo lectura | `invitado@demo.es` | `Invitado1234!` |
+
+Las contraseñas se cambian desde el **Panel de administración → fila del centro → usuarios**.
+Para no crear los datos demo (entorno de producción), añade `SEED_DEMO=false` al `.env` antes del primer arranque.
 
 ---
 
@@ -51,7 +56,8 @@ cp .env.example .env
 docker compose up -d --build
 
 # 4. Abre http://localhost:7500
-#    Credenciales iniciales: las definidas en SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD del .env
+#    Superadmin:  admin@calidocs.es  /  Admin1234!
+#    Demo centro: director@demo.es   /  Director1234!  (y más usuarios, ver tabla arriba)
 ```
 
 ### Parar sin perder datos
