@@ -94,15 +94,34 @@ async function checkSession() {
   }
 }
 
+const NIVEL = { superadmin: 5, admin_centro: 4, coordinador_calidad: 3, docente: 2, invitado: 1 };
+function tieneRol(minimo) { return (NIVEL[usuario?.rol] || 0) >= (NIVEL[minimo] || 99); }
+
 function onLogin() {
   document.getElementById('sec-login').style.display = 'none';
   document.getElementById('app-header').style.display = 'flex';
   document.getElementById('app-body').style.display = 'flex';
   document.getElementById('nav-usuario').textContent = `${usuario.nombre} · ${usuario.rol}`;
+
   if (usuario.rol === 'superadmin') {
     document.getElementById('nav-admin').style.display = 'flex';
     document.getElementById('nav-admin-section').style.display = 'block';
   }
+
+  // Muestra/oculta controles según el rol
+  const esCoord  = tieneRol('coordinador_calidad');
+  const esAdmin  = tieneRol('admin_centro');
+  const tieneCentro = !!usuario.id_centro;
+
+  // Árbol SGC: botones de escritura solo para coordinador+
+  document.getElementById('btn-nueva-carpeta').style.display  = esCoord && tieneCentro ? '' : 'none';
+  document.getElementById('btn-reset-arbol').style.display    = esAdmin  && tieneCentro ? '' : 'none';
+  document.getElementById('btn-script-bash').style.display    = tieneCentro ? '' : 'none';
+  document.getElementById('btn-script-ps').style.display      = tieneCentro ? '' : 'none';
+
+  // Repositorio: botón subir solo para coordinador+
+  document.getElementById('btn-subir-doc').style.display = esCoord && tieneCentro ? '' : 'none';
+
   showSec('dashboard');
 }
 
@@ -265,11 +284,11 @@ function crearNodo(n) {
     </span>
     <span class="tree-icon">${tieneHijos ? '📂' : '📄'}</span>
     <span class="tree-name">${n.nombre}${n.codigo ? ` <span style="color:var(--mid);font-size:.72rem;">(${n.codigo})</span>` : ''}</span>
-    <span class="tree-actions">
+    ${tieneRol('coordinador_calidad') ? `<span class="tree-actions">
       <button class="tree-btn" onclick="abrirModalRenombrar(${n.id},'${n.nombre.replace(/'/g, "\\'")}')">✏</button>
       <button class="tree-btn" onclick="nuevaSubcarpeta(${n.id})">+</button>
       <button class="tree-btn" style="color:var(--error);" onclick="borrarCarpeta(${n.id})">✕</button>
-    </span>`;
+    </span>` : ''}`;
 
   row.querySelector('.tree-toggle').addEventListener('click', e => {
     e.stopPropagation();
@@ -367,9 +386,19 @@ async function borrarCarpeta(id) {
 
 document.getElementById('btn-reset-arbol').addEventListener('click', async () => {
   if (!confirm('¿Cargar el árbol SGC estándar? Se eliminará el árbol actual.')) return;
-  await apiFetch('/carpetas/reset', { method: 'POST' });
-  nodosExpandidos.clear();
-  cargarArbol();
+  const btn = document.getElementById('btn-reset-arbol');
+  btn.disabled = true;
+  btn.textContent = '⏳ Cargando…';
+  try {
+    await apiFetch('/carpetas/reset', { method: 'POST' });
+    nodosExpandidos.clear();
+    await cargarArbol();
+  } catch (err) {
+    alert(`Error al cargar la plantilla: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↺ Cargar plantilla SGC';
+  }
 });
 
 document.getElementById('btn-script-bash').addEventListener('click', () => window.open('/api/carpetas/script?tipo=bash', '_blank'));
