@@ -18,7 +18,9 @@ services:
       retries: 3
 
   frontend:
-    build: ./nginx
+    build:
+      context: .          # raíz del repo → permite COPY frontend/ y nginx/
+      dockerfile: nginx/Dockerfile
     restart: unless-stopped
     ports:
       - "80:80"

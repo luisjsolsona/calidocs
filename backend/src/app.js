@@ -3,31 +3,34 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 
-const authRoutes   = require('./routes/auth.routes');
-const centroRoutes = require('./routes/centro.routes');
-const adminRoutes  = require('./routes/admin.routes');
+const authRoutes      = require('./routes/auth.routes');
+const centroRoutes    = require('./routes/centro.routes');
+const carpetaRoutes   = require('./routes/carpeta.routes');
+const documentoRoutes = require('./routes/documento.routes');
+const generadorRoutes = require('./routes/generador.routes');
+const adminRoutes     = require('./routes/admin.routes');
 
 const app = express();
 
-app.use(express.json({ limit: '5mb' }));   // 5 MB para logos en base64
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost',
-  credentials: true,                        // necesario para enviar cookies
+  credentials: true,
 }));
 
-// Rutas
-app.use('/api/auth',   authRoutes);
-app.use('/api/centro', centroRoutes);
-app.use('/api/admin',  adminRoutes);
+app.use('/api/auth',       authRoutes);
+app.use('/api/centro',     centroRoutes);
+app.use('/api/carpetas',   carpetaRoutes);
+app.use('/api/documentos', documentoRoutes);
+app.use('/api/generador',  generadorRoutes);
+app.use('/api/admin',      adminRoutes);
 
-// Health check (usado por Docker)
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', version: '1.0' }));
 
-// Manejo de errores global
 app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Error interno' });
+  console.error('[Error]', err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Error interno del servidor' });
 });
 
 module.exports = app;
