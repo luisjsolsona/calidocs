@@ -4,6 +4,22 @@ Sistema de gestión documental de calidad para institutos de Formación Profesio
 
 ---
 
+## Credenciales de acceso
+
+En el primer arranque se crean automáticamente un superadmin y un centro de demostración **"IES Demo"** con un usuario por cada rol:
+
+| Rol | Email | Contraseña |
+|-----|-------|------------|
+| `superadmin` | `admin@calidocs.es` | `Admin1234!` |
+| `admin_centro` | `director@demo.es` | `Director1234!` |
+| `coordinador_calidad` | `calidad@demo.es` | `Calidad1234!` |
+| `docente` | `docente@demo.es` | `Docente1234!` |
+| `invitado` | `invitado@demo.es` | `Invitado1234!` |
+
+Las contraseñas se pueden cambiar en cualquier momento desde el **Panel de administración**. Para desactivar la creación de datos demo en producción, añade `SEED_DEMO=false` al `.env` antes del primer arranque.
+
+---
+
 ## Funcionamiento básico
 
 CaliDocs organiza la documentación de un Sistema de Gestión de Calidad (ISO 9001:2015) para centros de Formación Profesional. Funciona en **modo multi-centro**: cada instituto tiene su propio espacio de usuarios, carpetas y documentos, totalmente aislado.
@@ -59,3 +75,20 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 El frontend se sirve directamente desde `./frontend/` y el backend recarga al guardar.
+
+---
+
+## Interacción con el sistema anfitrión (Windows / PC)
+
+CaliDocs corre dentro de Docker, por lo que **no puede ejecutar acciones directamente** en tu PC. Sin embargo hay dos puentes disponibles:
+
+- **Scripts de estructura de carpetas** — desde la sección "Árbol SGC" puedes descargar un script `.ps1` (PowerShell) o `.sh` (Bash) que crea en tu PC la misma estructura de carpetas del SGC. Solo hay que ejecutarlo una vez.
+
+- **Carpeta compartida** — si quieres acceder a los archivos del repositorio directamente desde el Explorador de Windows, monta tu carpeta local en el volumen de datos. Añade esto al `docker-compose.yml` en el servicio `backend`:
+
+  ```yaml
+  volumes:
+    - C:/CaliDocs/datos:/app/data
+  ```
+
+  Así los documentos subidos o generados por IA quedarán en `C:\CaliDocs\datos\docs\` y serán accesibles desde Windows como cualquier carpeta normal.
