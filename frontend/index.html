@@ -136,9 +136,13 @@ textarea{min-height:80px;resize:vertical;}
 
 /* ── MODAL PREVIEW ── */
 #modal-preview{flex-direction:column;}
-#preview-frame-wrap{flex:1;overflow:auto;background:#f1f1f1;}
+#preview-frame-wrap{flex:1;overflow:auto;background:#f1f1f1;position:relative;}
 #preview-frame-wrap embed,#preview-frame-wrap iframe{width:100%;height:100%;border:none;display:block;}
 #preview-frame-wrap img{max-width:100%;display:block;margin:auto;padding:20px;}
+.xlsx-table{border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%;}
+.xlsx-table td,.xlsx-table th{border:1px solid #ddd;padding:4px 10px;}
+.xlsx-table tr:first-child td{background:#f5f5f5;font-weight:600;position:sticky;top:0;}
+.xlsx-table tr:nth-child(even){background:#fafafa;}
 
 /* ── TABLA ORDENABLE ── */
 .doc-table th.sortable{cursor:pointer;user-select:none;}
@@ -266,9 +270,12 @@ textarea{min-height:80px;resize:vertical;}
       <div class="page-sub">Estructura de carpetas del Sistema de Gestión de Calidad</div>
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btn-nueva-carpeta">+ Nueva carpeta</button>
+        <button class="btn btn-outline" id="btn-codificar">🏷 Codificar</button>
         <button class="btn btn-outline" id="btn-reset-arbol">↺ Cargar plantilla SGC</button>
         <button class="btn btn-outline" id="btn-script-bash">⬇ Script Bash</button>
         <button class="btn btn-outline" id="btn-script-ps">⬇ Script PowerShell</button>
+        <button class="btn btn-outline" id="btn-expandir-todo" style="margin-left:auto;">▼ Desplegar todo</button>
+        <button class="btn btn-outline" id="btn-plegar-todo">▲ Plegar todo</button>
       </div>
       <div class="panel">
         <div class="panel-head">🗂 Árbol de carpetas</div>
@@ -313,6 +320,7 @@ textarea{min-height:80px;resize:vertical;}
         <button class="btn btn-outline" id="btn-limpiar-buscar">✕ Limpiar</button>
         <select id="repo-filtro-carpeta" style="flex:0 0 220px;"><option value="">— Todas las carpetas —</option></select>
         <button class="btn btn-outline" id="btn-subir-doc">+ Subir documento</button>
+        <button class="btn btn-outline" id="btn-crear-doc">📝 Crear documento</button>
       </div>
 
       <!-- Upload modal -->
@@ -515,6 +523,123 @@ textarea{min-height:80px;resize:vertical;}
       <button class="btn btn-outline" id="btn-close-preview" style="font-size:.8rem;padding:6px 12px;">✕ Cerrar</button>
     </div>
     <div id="preview-frame-wrap" style="flex:1;overflow:auto;background:#f5f5f5;"></div>
+  </div>
+</div>
+
+<!-- Modal Codificar — nomenclatura SGC -->
+<div id="modal-codificar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.35);">
+    <div style="display:flex;align-items:center;margin-bottom:16px;">
+      <span style="font-weight:700;font-size:1rem;">🏷 Codificar elemento SGC</span>
+      <button onclick="document.getElementById('modal-codificar').style.display='none'" style="margin-left:auto;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);">×</button>
+    </div>
+    <!-- resultado -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <div style="flex:1;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--mid);margin-bottom:4px;">Nombre actual</div>
+        <div id="cod-current-name" style="font-family:'DM Mono',monospace;font-size:.85rem;color:var(--ink);word-break:break-all;">—</div>
+      </div>
+      <div style="flex:1;background:#eef4f8;border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent2);margin-bottom:4px;">Resultado</div>
+        <div id="cod-preview-val" style="font-family:'DM Mono',monospace;font-size:.85rem;color:var(--accent2);font-weight:700;word-break:break-all;">—</div>
+      </div>
+    </div>
+    <!-- referencia colapsable -->
+    <details style="margin-bottom:14px;">
+      <summary style="font-size:.78rem;color:var(--mid);cursor:pointer;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">📖 Referencia de codificación SGC</summary>
+      <div style="margin-top:8px;background:var(--cream);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:.78rem;font-family:'DM Mono',monospace;line-height:1.9;color:var(--ink);">
+        <b>Formatos:</b> f-[sección]-[subsección]-[seq]_Descripcion<br>
+        <b>Instrucciones:</b> i-[sección]-[subsección]-[seq]<br>
+        <b>Procedimientos:</b> p-[sección]-[subsección]<br>
+        <b>Procesos:</b> prs-[número]<br>
+        <b>Proyecto Funcional:</b> pf[número]<br>
+        <span style="color:var(--mid);">Ej: f-7.2-a-01_Ficha_recogida_datos_profesorado</span>
+      </div>
+    </details>
+    <!-- campos -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <label>Tipo de documento</label>
+        <select id="cod-tipo" onchange="actualizarCodigo()">
+          <option value="">— Sin prefijo —</option>
+          <option value="f">f — Formato</option>
+          <option value="i">i — Instrucción</option>
+          <option value="p">p — Procedimiento</option>
+          <option value="prs">prs — Proceso</option>
+          <option value="pf">pf — Proyecto Funcional</option>
+          <option value="Anexo">Anexo</option>
+        </select>
+      </div>
+      <div>
+        <label>Sección ISO (ej: 7.2, 8.2)</label>
+        <input type="text" id="cod-seccion" placeholder="7.2" oninput="actualizarCodigo()">
+      </div>
+      <div>
+        <label>Subsección (ej: a, b, c)</label>
+        <input type="text" id="cod-subseccion" placeholder="a" oninput="actualizarCodigo()">
+      </div>
+      <div>
+        <label>Secuencial (ej: 01, 02)</label>
+        <input type="text" id="cod-seq" placeholder="01" oninput="actualizarCodigo()">
+      </div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label>Descripción (palabras separadas por _)</label>
+      <input type="text" id="cod-desc" placeholder="Ficha_recogida_datos_profesorado" oninput="actualizarCodigo()">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-codificar').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" id="btn-aplicar-codigo">✔ Copiar nombre</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Crear Documento (sin IA) -->
+<div id="modal-crear" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.35);">
+    <div style="display:flex;align-items:center;margin-bottom:16px;">
+      <span style="font-weight:700;font-size:1rem;">📝 Crear documento con cabecera SGC</span>
+      <button onclick="document.getElementById('modal-crear').style.display='none'" style="margin-left:auto;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--mid);">×</button>
+    </div>
+    <div style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:16px;font-size:.82rem;color:var(--mid);">
+      Genera un <strong>.docx</strong> con la cabecera institucional del centro y lo guarda en el repositorio como borrador.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="grid-column:1/-1;"><label>Nombre del documento *</label><input type="text" id="crear-nombre" placeholder="f-7.2-a-01_Ficha_recogida_datos…"></div>
+      <div><label>Código (opcional)</label><input type="text" id="crear-codigo" placeholder="f-7.2-a-01"></div>
+      <div><label>Carpeta</label><select id="crear-carpeta"><option value="">— Sin carpeta —</option></select></div>
+      <div>
+        <label>Tipo</label>
+        <select id="crear-tipo">
+          <option value="">— Detectar por nombre —</option>
+          <option value="formato">Formato</option>
+          <option value="instruccion">Instrucción</option>
+          <option value="procedimiento">Procedimiento</option>
+          <option value="proceso">Proceso</option>
+          <option value="proyecto">Proyecto Funcional</option>
+          <option value="anexo">Anexo</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div>
+        <label>Estado inicial</label>
+        <select id="crear-estado">
+          <option value="borrador">Borrador</option>
+          <option value="vigente">Vigente</option>
+        </select>
+      </div>
+      <div><label>Módulo (opcional)</label><input type="text" id="crear-modulo" placeholder="Redes y Sistemas"></div>
+      <div><label>Ciclo (opcional)</label><input type="text" id="crear-ciclo" placeholder="CFGS DAW"></div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label>Contenido (Markdown, opcional)</label>
+      <textarea id="crear-contenido" rows="8" placeholder="# Título&#10;&#10;## Objeto&#10;Descripción del documento...&#10;&#10;## Alcance&#10;..." style="font-family:'DM Mono',monospace;font-size:.82rem;resize:vertical;"></textarea>
+    </div>
+    <div id="crear-msg" class="msg" style="margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-outline" id="btn-cancel-crear">Cancelar</button>
+      <button class="btn btn-primary" id="btn-ok-crear">📄 Generar DOCX</button>
+    </div>
   </div>
 </div>
 

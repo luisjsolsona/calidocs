@@ -1,6 +1,8 @@
 const path = require('path');
 const fs   = require('fs');
-const Documento = require('../models/documento.model');
+const Documento  = require('../models/documento.model');
+const Centro     = require('../models/centro.model');
+const { generarDocx } = require('../services/docx.service');
 
 const DOCS_ROOT = path.resolve(process.env.DOCS_PATH || '/app/data/docs');
 
@@ -147,6 +149,41 @@ function deleteDocumento(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// POST /api/documentos/crear — crear DOCX con cabecera institucional (sin IA)
+async function crearDocumento(req, res, next) {
+  try {
+    const id_centro = req.usuario.id_centro;
+    if (!id_centro) return res.status(403).json({ error: 'Sin centro asignado' });
+
+    const { nombre, codigo, tipo, version, estado, id_carpeta, modulo, ciclo, contenido } = req.body;
+    if (!nombre) return res.status(400).json({ error: 'nombre requerido' });
+
+    const centro     = Centro.findById(id_centro);
+    const carpetaId  = id_carpeta ? parseInt(id_carpeta, 10) : 0;
+    const dir        = docsDir(id_centro, carpetaId || null);
+    const filename   = `${Date.now()}_${nombre.replace(/[^a-zA-Z0-9._-]/g, '_')}.docx`;
+    const outputPath = path.join(dir, filename);
+
+    await generarDocx(contenido || '', nombre, centro, outputPath, { modulo, ciclo, version, estado });
+
+    const relPath = path.relative(DOCS_ROOT, outputPath);
+    const doc = Documento.create({
+      id_centro,
+      id_carpeta: id_carpeta ? parseInt(id_carpeta, 10) : null,
+      nombre,
+      codigo:     codigo  || null,
+      tipo:       tipo    || detectarTipo(nombre),
+      version:    version || '1.0',
+      estado:     estado  || 'borrador',
+      extension:  'docx',
+      archivo_path: relPath,
+      subido_por:   req.usuario.id,
+      generado_ia:  0,
+    });
+    res.status(201).json(doc);
+  } catch (err) { next(err); }
+}
+
 function detectarTipo(nombre) {
   const n = (nombre || '').toLowerCase();
   if (n.startsWith('f-'))    return 'formato';
@@ -158,4 +195,4 @@ function detectarTipo(nombre) {
   return 'otro';
 }
 
-module.exports = { listDocumentos, buscarDocumentos, uploadDocumento, verDocumento, descargarDocumento, updateDocumento, deleteDocumento };
+module.exports = { listDocumentos, buscarDocumentos, uploadDocumento, crearDocumento, verDocumento, descargarDocumento, updateDocumento, deleteDocumento };

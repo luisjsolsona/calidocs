@@ -3,9 +3,13 @@ const fs   = require('fs');
 const path = require('path');
 
 // Genera un archivo .docx a partir de texto plano con la cabecera institucional del centro
-async function generarDocx(contenido, nombre, centro, outputPath) {
+// opts: { modulo, ciclo, version, estado } opcionales para la cabecera
+async function generarDocx(contenido, nombre, centro, outputPath, opts = {}) {
   const lineas = contenido.split('\n');
   const children = [];
+
+  const version = opts.version || '1.0';
+  const estado  = opts.estado  || 'Borrador';
 
   // Cabecera institucional
   children.push(
@@ -20,7 +24,18 @@ async function generarDocx(contenido, nombre, centro, outputPath) {
       spacing: { after: 60 },
     }),
     new Paragraph({
-      children: [new TextRun({ text: `Año académico: ${centro?.año_academico || ''}  |  Rev. 1.0  |  Estado: Borrador`, size: 18, color: '888888' })],
+      children: [new TextRun({
+        text: [
+          opts.modulo ? `Módulo: ${opts.modulo}` : null,
+          opts.ciclo  ? `Ciclo: ${opts.ciclo}`   : null,
+        ].filter(Boolean).join('  |  '),
+        size: 18, color: '555555',
+      })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Año académico: ${centro?.año_academico || ''}  |  Rev. ${version}  |  Estado: ${estado}`, size: 18, color: '888888' })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 400 },
     }),

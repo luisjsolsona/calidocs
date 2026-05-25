@@ -39,7 +39,7 @@ function fmtFecha(iso) {
 
 // ── Cierre de modales con ESC y clic en el fondo ──────────────────────────────
 
-const MODALES = ['modal-carpeta', 'modal-renombrar', 'modal-upload', 'modal-centro', 'modal-usuario', 'modal-preview'];
+const MODALES = ['modal-carpeta', 'modal-renombrar', 'modal-upload', 'modal-centro', 'modal-usuario', 'modal-preview', 'modal-codificar', 'modal-crear'];
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
@@ -115,12 +115,16 @@ function onLogin() {
 
   // Árbol SGC: botones de escritura solo para coordinador+
   document.getElementById('btn-nueva-carpeta').style.display  = esCoord && tieneCentro ? '' : 'none';
+  document.getElementById('btn-codificar').style.display      = tieneCentro ? '' : 'none';
   document.getElementById('btn-reset-arbol').style.display    = esAdmin  && tieneCentro ? '' : 'none';
   document.getElementById('btn-script-bash').style.display    = tieneCentro ? '' : 'none';
   document.getElementById('btn-script-ps').style.display      = tieneCentro ? '' : 'none';
+  document.getElementById('btn-expandir-todo').style.display  = tieneCentro ? '' : 'none';
+  document.getElementById('btn-plegar-todo').style.display    = tieneCentro ? '' : 'none';
 
-  // Repositorio: botón subir solo para coordinador+
-  document.getElementById('btn-subir-doc').style.display = esCoord && tieneCentro ? '' : 'none';
+  // Repositorio: botones de acción según rol
+  document.getElementById('btn-subir-doc').style.display  = esCoord && tieneCentro ? '' : 'none';
+  document.getElementById('btn-crear-doc').style.display  = tieneCentro ? '' : 'none';
 
   showSec('dashboard');
 }
@@ -518,38 +522,201 @@ function renderDocs(docs) {
   });
 }
 
-// ── Preview de documentos ─────────────────────────────────────────────────────
+// ── Preview de documentos (PDF.js + mammoth + SheetJS) ───────────────────────
 
-const PREVIEWABLES_IMG = ['jpg','jpeg','png','gif','webp','svg'];
-const PREVIEWABLES_PDF = ['pdf'];
-const PREVIEWABLES_TXT = ['txt','csv','log','md','json','xml','html','htm'];
+const EXT_IMG  = new Set(['jpg','jpeg','png','gif','webp','svg','bmp','ico']);
+const EXT_PDF  = new Set(['pdf']);
+const EXT_DOC  = new Set(['docx','doc']);
+const EXT_XLS  = new Set(['xlsx','xls','ods']);
+const EXT_TXT  = new Set(['txt','log','md','json','xml','html','htm','csv']);
 
-function abrirPreview(id, nombre, extension) {
-  const ext = (extension || '').toLowerCase();
-  document.getElementById('preview-titulo').textContent = nombre + (ext ? `.${ext}` : '');
-  document.getElementById('btn-preview-descargar').onclick = () => window.open(`/api/documentos/${id}/descargar`, '_blank');
-  const wrap = document.getElementById('preview-frame-wrap');
-  const url  = `/api/documentos/${id}/ver`;
+let _pdfJsReady    = false;
+let _mammothReady  = false;
+let _xlsxReady     = false;
+let _currentPdfDoc = null;
+let _pdfScale      = 1.5;
+let _pdfPage       = 1;
 
-  if (PREVIEWABLES_PDF.includes(ext)) {
-    wrap.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="100%">`;
-  } else if (PREVIEWABLES_IMG.includes(ext)) {
-    wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;"><img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.15);"></div>`;
-  } else if (PREVIEWABLES_TXT.includes(ext)) {
-    wrap.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
-  } else {
-    wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--mid);gap:12px;">
-      <div style="font-size:3.5rem;">📄</div>
-      <div style="font-size:.95rem;">Vista previa no disponible para <strong>.${ext || 'este formato'}</strong></div>
-      <div style="font-size:.83rem;">Usa el botón Descargar para abrirlo en tu equipo.</div>
-    </div>`;
-  }
-  document.getElementById('modal-preview').style.display = 'flex';
+function _loadScript(url) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = url; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
 }
+async function _ensurePdfJs() {
+  if (_pdfJsReady) return;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  _pdfJsReady = true;
+}
+async function _ensureMammoth() {
+  if (_mammothReady) return;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+  _mammothReady = true;
+}
+async function _ensureXlsx() {
+  if (_xlsxReady) return;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  _xlsxReady = true;
+}
+
+async function abrirPreview(id, nombre, extension) {
+  const ext  = (extension || '').toLowerCase();
+  const url  = `/api/documentos/${id}/ver`;
+  const wrap = document.getElementById('preview-frame-wrap');
+
+  document.getElementById('preview-titulo').textContent = nombre + (ext ? `.${ext}` : '');
+  document.getElementById('btn-preview-descargar').onclick = () =>
+    window.open(`/api/documentos/${id}/descargar`, '_blank');
+  document.getElementById('modal-preview').style.display = 'flex';
+  wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--mid);">Cargando…</div>`;
+
+  try {
+    if (EXT_PDF.has(ext)) {
+      await _ensurePdfJs();
+      _pdfScale = 1.5; _pdfPage = 1; _currentPdfDoc = null;
+      wrap.innerHTML = `
+        <div id="pdf-viewer" style="width:100%;height:100%;overflow-y:auto;background:#525659;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;">
+          <div id="pdf-pages" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;"></div>
+          <div style="position:sticky;bottom:8px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.75);border-radius:20px;padding:6px 16px;margin-top:8px;">
+            <button onclick="pdfPrevPage()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">◀</button>
+            <span id="pdf-pageinfo" style="font-size:12px;color:#fff;white-space:nowrap">— / —</span>
+            <button onclick="pdfNextPage()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">▶</button>
+            <span style="color:#555;margin:0 4px;">|</span>
+            <button onclick="pdfZoomOut()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;">－</button>
+            <span id="pdf-zoom-label" style="font-size:12px;color:#fff;min-width:40px;text-align:center;">100%</span>
+            <button onclick="pdfZoomIn()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;">＋</button>
+          </div>
+        </div>`;
+      const res = await fetch(url, { credentials: 'include' });
+      const buf = await res.arrayBuffer();
+      _currentPdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+      await _renderPdfPages();
+
+    } else if (EXT_IMG.has(ext)) {
+      wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;background:#f5f5f5;">
+        <img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 16px rgba(0,0,0,.15);" onerror="this.parentElement.textContent='Error al cargar imagen'">
+      </div>`;
+
+    } else if (EXT_DOC.has(ext)) {
+      await _ensureMammoth();
+      const res = await fetch(url, { credentials: 'include' });
+      const buf = await res.arrayBuffer();
+      const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+      wrap.innerHTML = `<div style="width:100%;height:100%;overflow-y:auto;padding:28px 36px;background:#fff;color:#111;font-family:Georgia,serif;font-size:14px;line-height:1.75;box-sizing:border-box;">${value || '<p style="color:#999;">Documento vacío</p>'}</div>`;
+
+    } else if (EXT_XLS.has(ext)) {
+      await _ensureXlsx();
+      const res = await fetch(url, { credentials: 'include' });
+      const buf = await res.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      wrap.style.overflow = 'hidden';
+      wrap.style.display  = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.innerHTML = '';
+      const tabs = document.createElement('div');
+      tabs.style.cssText = 'display:flex;gap:4px;padding:8px 12px;background:var(--cream);border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;';
+      const tableWrap = document.createElement('div');
+      tableWrap.style.cssText = 'flex:1;overflow:auto;padding:12px;background:#fff;';
+      wrap.appendChild(tabs);
+      wrap.appendChild(tableWrap);
+      wb.SheetNames.forEach((name, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = name;
+        btn.style.cssText = `padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:${idx===0?'var(--accent)':'var(--paper)'};color:${idx===0?'#fff':'var(--ink)'};font-size:11px;cursor:pointer;`;
+        btn.onclick = () => {
+          tabs.querySelectorAll('button').forEach(b => { b.style.background='var(--paper)'; b.style.color='var(--ink)'; });
+          btn.style.background='var(--accent)'; btn.style.color='#fff';
+          const html = XLSX.utils.sheet_to_html(wb.Sheets[name]);
+          tableWrap.innerHTML = html.replace('<table>', '<table class="xlsx-table">');
+        };
+        tabs.appendChild(btn);
+        if (idx === 0) {
+          const html = XLSX.utils.sheet_to_html(wb.Sheets[name]);
+          tableWrap.innerHTML = html.replace('<table>', '<table class="xlsx-table">');
+        }
+      });
+
+    } else if (EXT_TXT.has(ext)) {
+      wrap.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
+
+    } else {
+      _previewInfoCard(wrap, nombre, ext, url);
+    }
+  } catch (err) {
+    _previewInfoCard(wrap, nombre, ext, url, err.message);
+  }
+}
+
+function _previewInfoCard(wrap, nombre, ext, url, error) {
+  const icons = { doc:'📘',docx:'📘',xls:'📗',xlsx:'📗',ppt:'📙',pptx:'📙',zip:'🗜',odt:'📄',ods:'📊',odp:'📊' };
+  const types = { docx:'Word',doc:'Word',xlsx:'Excel',xls:'Excel',pptx:'PowerPoint',ppt:'PowerPoint',odt:'LibreOffice Writer',ods:'LibreOffice Calc' };
+  wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;padding:40px;text-align:center;color:var(--mid);">
+    <div style="font-size:4rem;">${icons[ext] || '📄'}</div>
+    <div style="font-size:.95rem;color:var(--ink);font-weight:600;">${nombre}.${ext}</div>
+    <div style="font-size:.83rem;">${types[ext] || ext.toUpperCase()} — Vista previa no disponible</div>
+    ${error ? `<div style="font-size:.78rem;color:var(--error);">${error}</div>` : ''}
+    <button class="btn btn-outline" onclick="window.open('${url}','_blank')" style="font-size:.82rem;">↗ Abrir en nueva pestaña</button>
+  </div>`;
+}
+
+async function _renderPdfPages() {
+  const pagesDiv = document.getElementById('pdf-pages');
+  if (!pagesDiv || !_currentPdfDoc) return;
+  pagesDiv.innerHTML = '';
+  const total = _currentPdfDoc.numPages;
+  const w = (document.getElementById('pdf-viewer')?.clientWidth || 600) - 24;
+  for (let i = 1; i <= total; i++) {
+    const page = await _currentPdfDoc.getPage(i);
+    const vp0  = page.getViewport({ scale: 1 });
+    const sc   = Math.min(_pdfScale, (w / vp0.width) * _pdfScale);
+    const vp   = page.getViewport({ scale: sc });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    canvas.id = `pdf-p${i}`;
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:4px;text-align:center;';
+    lbl.textContent = `Página ${i} / ${total}`;
+    const wrap = document.createElement('div');
+    wrap.appendChild(lbl); wrap.appendChild(canvas);
+    pagesDiv.appendChild(wrap);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  }
+  const pi = document.getElementById('pdf-pageinfo');
+  const pz = document.getElementById('pdf-zoom-label');
+  if (pi) pi.textContent = `${_pdfPage} / ${total}`;
+  if (pz) pz.textContent = Math.round(_pdfScale / 1.5 * 100) + '%';
+}
+
+function pdfPrevPage() {
+  if (_pdfPage <= 1) return;
+  _pdfPage--;
+  document.getElementById(`pdf-p${_pdfPage}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
+  const pi = document.getElementById('pdf-pageinfo');
+  if (pi) pi.textContent = `${_pdfPage} / ${_currentPdfDoc?.numPages || '—'}`;
+}
+function pdfNextPage() {
+  const total = _currentPdfDoc?.numPages || 0;
+  if (_pdfPage >= total) return;
+  _pdfPage++;
+  document.getElementById(`pdf-p${_pdfPage}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
+  const pi = document.getElementById('pdf-pageinfo');
+  if (pi) pi.textContent = `${_pdfPage} / ${total}`;
+}
+async function pdfZoomIn()  { _pdfScale = Math.min(_pdfScale + 0.5, 5);   await _renderPdfPages(); }
+async function pdfZoomOut() { _pdfScale = Math.max(_pdfScale - 0.5, 0.5); await _renderPdfPages(); }
 
 document.getElementById('btn-close-preview').addEventListener('click', () => {
   document.getElementById('modal-preview').style.display = 'none';
-  document.getElementById('preview-frame-wrap').innerHTML = '';
+  const wrap = document.getElementById('preview-frame-wrap');
+  wrap.innerHTML = '';
+  wrap.style.display = '';
+  wrap.style.flexDirection = '';
+  wrap.style.overflow = '';
+  _currentPdfDoc = null;
 });
 
 // Puebla el select de filtro por carpeta reutilizando arbolData en caché
@@ -980,6 +1147,102 @@ async function cargarCarpetasSelect(selectId) {
     sel.innerHTML = opciones.join('');
   } catch {}
 }
+
+// ── Expandir / Plegar árbol ───────────────────────────────────────────────────
+
+document.getElementById('btn-expandir-todo')?.addEventListener('click', () => {
+  arbolData.forEach(n => nodosExpandidos.add(n.id));
+  renderArbol();
+});
+
+document.getElementById('btn-plegar-todo')?.addEventListener('click', () => {
+  nodosExpandidos.clear();
+  renderArbol();
+});
+
+// ── Modal Codificar ───────────────────────────────────────────────────────────
+
+document.getElementById('btn-codificar')?.addEventListener('click', () => {
+  ['cod-tipo','cod-seccion','cod-subseccion','cod-seq','cod-desc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('cod-current-name').textContent = '(nuevo nombre)';
+  document.getElementById('cod-preview-val').textContent = '—';
+  document.getElementById('modal-codificar').style.display = 'flex';
+});
+
+function actualizarCodigo() {
+  const tipo   = document.getElementById('cod-tipo').value;
+  const sec    = document.getElementById('cod-seccion').value.trim();
+  const sub    = document.getElementById('cod-subseccion').value.trim();
+  const seq    = document.getElementById('cod-seq').value.trim();
+  const desc   = document.getElementById('cod-desc').value.trim().replace(/\s+/g,'_');
+
+  let partes = [];
+  if (tipo) partes.push(tipo);
+  if (sec)  partes.push(sec);
+  if (sub)  partes.push(sub);
+  if (seq)  partes.push(seq.padStart(2,'0'));
+
+  let codigo = partes.join('-');
+  if (desc) codigo = codigo ? `${codigo}_${desc}` : desc;
+
+  document.getElementById('cod-preview-val').textContent = codigo || '—';
+}
+
+document.getElementById('btn-aplicar-codigo')?.addEventListener('click', () => {
+  const val = document.getElementById('cod-preview-val').textContent;
+  if (!val || val === '—') return;
+  navigator.clipboard?.writeText(val).catch(() => {});
+  document.getElementById('cod-current-name').textContent = `✓ Copiado: ${val}`;
+  setTimeout(() => {
+    document.getElementById('modal-codificar').style.display = 'none';
+  }, 900);
+});
+
+// ── Modal Crear Documento (sin IA) ────────────────────────────────────────────
+
+document.getElementById('btn-crear-doc')?.addEventListener('click', () => {
+  ['crear-nombre','crear-codigo','crear-modulo','crear-ciclo','crear-contenido'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('crear-msg')?.classList.remove('show');
+  cargarCarpetasSelect('crear-carpeta');
+  document.getElementById('modal-crear').style.display = 'flex';
+});
+
+document.getElementById('btn-cancel-crear')?.addEventListener('click', () => {
+  document.getElementById('modal-crear').style.display = 'none';
+});
+
+document.getElementById('btn-ok-crear')?.addEventListener('click', async () => {
+  const nombre = document.getElementById('crear-nombre').value.trim();
+  if (!nombre) return showMsg('crear-msg', 'El nombre es obligatorio');
+
+  const btn = document.getElementById('btn-ok-crear');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando…';
+
+  try {
+    const doc = await apiFetch('/documentos/crear', {
+      method: 'POST',
+      body: {
+        nombre,
+        codigo:    document.getElementById('crear-codigo').value.trim() || undefined,
+        tipo:      document.getElementById('crear-tipo').value || undefined,
+        estado:    document.getElementById('crear-estado').value,
+        id_carpeta: document.getElementById('crear-carpeta').value || undefined,
+        modulo:    document.getElementById('crear-modulo').value.trim() || undefined,
+        ciclo:     document.getElementById('crear-ciclo').value.trim()  || undefined,
+        contenido: document.getElementById('crear-contenido').value,
+      },
+    });
+    document.getElementById('modal-crear').style.display = 'none';
+    cargarDocumentos();
+  } catch (err) { showMsg('crear-msg', err.message); }
+  finally { btn.disabled = false; btn.textContent = '📄 Generar DOCX'; }
+});
 
 // ── Arranque ──────────────────────────────────────────────────────────────────
 checkSession();
