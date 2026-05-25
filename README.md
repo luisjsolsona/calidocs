@@ -29,15 +29,63 @@ Para no crear los datos demo (entorno de producción), añade `SEED_DEMO=false` 
 
 CaliDocs organiza la documentación de un Sistema de Gestión de Calidad (ISO 9001:2015) para centros de Formación Profesional. Funciona en **modo multi-centro**: cada instituto tiene su propio espacio de usuarios, carpetas y documentos, totalmente aislado.
 
-**Primer acceso:** entra con las credenciales de superadmin definidas en el `.env`. Desde el **Panel de administración** crea los centros y sus usuarios.
+### 1. Primer acceso y administración
 
-**Árbol SGC:** al crear un centro se genera automáticamente la estructura de carpetas estándar ISO 9001 adaptada a IES (secciones 4–8 + Anexos). Puedes añadir, renombrar o eliminar carpetas, y exportar la estructura como script Bash o PowerShell para replicarla en disco.
+Entra con el usuario `superadmin`. Desde el **Panel de administración** (menú lateral) puedes:
 
-**Repositorio de documentos:** sube cualquier archivo (PDF, DOCX, ODT…), asígnalo a una carpeta del árbol y elige su tipo y estado (`borrador / vigente / obsoleto`). El estado se puede cambiar directamente desde la tabla. Incluye búsqueda por nombre, código o tipo, y filtro por carpeta.
+- Ver estadísticas globales del sistema.
+- Crear nuevos centros — al crearlos se genera automáticamente el árbol SGC estándar.
+- Hacer clic en cualquier fila de centro para ver y gestionar sus usuarios: activar/desactivar o eliminar usuarios, y crear nuevos con el rol que necesites.
 
-**Generador IA:** escribe el nombre del documento siguiendo las convenciones de nomenclatura (`f-`, `i-`, `p-`, `prs-`, `pf-`, `Anexo-`) y Claude genera el contenido completo adaptado al contexto educativo FP. El resultado se guarda automáticamente como borrador en el repositorio y se puede descargar en formato `.docx`.
+### 2. Árbol SGC
 
-**Roles disponibles:** `superadmin` · `admin_centro` · `coordinador_calidad` · `docente` · `invitado` — cada uno con permisos de lectura/escritura apropiados.
+La estructura de carpetas sigue la norma ISO 9001:2015 adaptada a IES de FP (secciones 4–8 + Anexos con sus formatos e instrucciones). Desde esta sección puedes:
+
+- **Añadir** carpetas y subcarpetas con nombre y código opcional.
+- **Renombrar** carpetas con un modal propio (clic en ✏).
+- **Eliminar** carpetas (y sus subcarpetas).
+- **Cargar plantilla SGC** — restaura el árbol estándar desde cero (requiere rol `admin_centro`).
+- **Descargar script** — genera un `.ps1` (PowerShell) o `.sh` (Bash) para crear la misma estructura de carpetas en tu PC con un solo clic.
+
+### 3. Repositorio de documentos
+
+Sube cualquier archivo (PDF, DOCX, ODT, XLSX…) con drag & drop o selector. Para cada documento puedes indicar:
+
+- **Nombre, código y tipo** (formato, instrucción, procedimiento, proceso, proyecto, anexo).
+- **Carpeta** de destino dentro del árbol SGC.
+- **Estado:** `borrador → vigente → obsoleto`, cambiable directamente con el selector de la tabla.
+
+Incluye búsqueda por nombre, código o tipo, y filtro por carpeta.
+
+### 4. Generador IA
+
+Escribe el nombre del documento respetando las convenciones de nomenclatura del SGC:
+
+| Prefijo | Tipo de documento |
+|---------|-------------------|
+| `f-` | Formato / formulario |
+| `i-` | Instrucción de trabajo |
+| `p-` | Procedimiento |
+| `prs-` | Mapa / ficha de proceso |
+| `pf-` | Proyecto funcional |
+| `Anexo-` | Anexo informativo |
+
+Ejemplo: `f-6.2-b-01_Ficha_recogida_datos_profesorado`
+
+Claude detecta automáticamente el tipo y la sección ISO, genera el contenido completo adaptado al contexto educativo FP y lo guarda como borrador `.docx` en el repositorio, listo para descargar y editar.
+
+> Requiere `ANTHROPIC_API_KEY` en el `.env`.
+
+### 5. Permisos por rol
+
+| Acción | invitado | docente | coordinador | admin_centro | superadmin |
+|--------|:--------:|:-------:|:-----------:|:------------:|:----------:|
+| Ver documentos y árbol | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Subir / eliminar documentos | | ✓ | ✓ | ✓ | ✓ |
+| Crear / editar carpetas | | | ✓ | ✓ | ✓ |
+| Cargar plantilla SGC | | | | ✓ | ✓ |
+| Configurar el centro | | | | ✓ | ✓ |
+| Panel de administración | | | | | ✓ |
 
 ---
 
