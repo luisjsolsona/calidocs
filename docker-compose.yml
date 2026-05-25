@@ -6,8 +6,9 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      # Volumen nombrado → el .db sobrevive reinicios y rebuilds
-      - calidocs_data:/app/data
+      # Si HOST_DOCS_PATH está definido en .env se usa como bind mount (carpeta del PC anfitrión).
+      # Si no, se usa el volumen Docker interno 'calidocs_data'.
+      - ${HOST_DOCS_PATH:-calidocs_data}:/app/data
     expose:
       - "3000"
     depends_on: []
@@ -23,7 +24,7 @@ services:
       dockerfile: nginx/Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "7500:80"
     depends_on:
       - backend
 

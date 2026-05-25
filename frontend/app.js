@@ -622,6 +622,7 @@ document.getElementById('btn-gen-nuevo').addEventListener('click', () => {
 
 async function cargarAdmin() {
   try {
+    cargarAlmacenamiento();
     const data = await apiFetch('/admin/stats');
     document.getElementById('admin-stats').innerHTML =
       stat(data.centros, 'Centros') + stat(data.usuarios, 'Usuarios') +
@@ -661,6 +662,45 @@ async function cargarAdmin() {
       if (tr) { tr.classList.add('selected'); cargarUsuariosCentro(centroSeleccionadoAdmin, tr.dataset.nombre); }
     }
   } catch {}
+}
+
+async function cargarAlmacenamiento() {
+  const el = document.getElementById('almacenamiento-body');
+  if (!el) return;
+  try {
+    const s = await apiFetch('/admin/sistema');
+    const esAnfitrion = s.almacenamiento.modo === 'carpeta_anfitrion';
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">${esAnfitrion ? '🖥️' : '🐳'}</span>
+        <div>
+          <div style="font-weight:600;font-size:.92rem;">
+            ${esAnfitrion ? 'Carpeta del sistema anfitrión' : 'Volumen Docker interno'}
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--mid);margin-top:2px;">
+            ${esAnfitrion
+              ? `<span style="color:var(--success);">Host:</span> ${s.almacenamiento.ruta_host}&nbsp;&nbsp;→&nbsp;&nbsp;Contenedor: ${s.almacenamiento.ruta_contenedor}`
+              : `Volumen: <strong>${s.almacenamiento.nombre_volumen}</strong>&nbsp;&nbsp;→&nbsp;&nbsp;${s.almacenamiento.ruta_contenedor}`}
+          </div>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn btn-outline" style="font-size:.78rem;" onclick="document.getElementById('ayuda-almacenamiento').style.display=document.getElementById('ayuda-almacenamiento').style.display==='none'?'block':'none'">
+            ⚙ Cambiar carpeta
+          </button>
+        </div>
+      </div>
+      <div id="ayuda-almacenamiento" style="display:none;margin-top:16px;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:.84rem;">
+        <p style="margin-bottom:10px;">Para enlazar los archivos a una carpeta de tu PC, edita el archivo <code style="background:#fff;padding:2px 5px;border-radius:4px;">.env</code> y establece:</p>
+        <pre style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:.78rem;overflow-x:auto;">HOST_DOCS_PATH=C:/CaliDocs/datos       # Windows
+HOST_DOCS_PATH=/home/usuario/calidocs  # Linux / Mac</pre>
+        <p style="margin-top:10px;">Después reinicia el sistema:</p>
+        <pre style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:.78rem;">docker compose down
+docker compose up -d --build</pre>
+        <p style="margin-top:10px;color:var(--mid);">⚠ La carpeta debe existir en el PC antes de arrancar. Los datos del volumen anterior <strong>no se migran</strong> automáticamente.</p>
+      </div>`;
+  } catch {
+    el.innerHTML = '<p style="color:var(--mid);font-size:.88rem;">No se pudo cargar la información de almacenamiento.</p>';
+  }
 }
 
 async function cargarUsuariosCentro(id, nombre) {

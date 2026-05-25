@@ -50,7 +50,7 @@ cp .env.example .env
 # 3. Levanta el stack (primera vez tarda ~2-3 min compilando dependencias nativas)
 docker compose up -d --build
 
-# 4. Abre http://localhost
+# 4. Abre http://localhost:7500
 #    Credenciales iniciales: las definidas en SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD del .env
 ```
 
@@ -74,7 +74,7 @@ docker compose down -v
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-El frontend se sirve directamente desde `./frontend/` y el backend recarga al guardar.
+El frontend se sirve en `http://localhost:7500` y el backend recarga al guardar.
 
 ---
 

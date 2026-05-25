@@ -28,7 +28,7 @@ services:
     volumes:
       - ./frontend:/usr/share/nginx/html:ro   # hot-reload de HTML/JS al guardar
     ports:
-      - "80:80"
+      - "7500:80"
 
 volumes:
   calidocs_data:

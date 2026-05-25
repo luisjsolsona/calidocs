@@ -6,6 +6,7 @@ const { requireRol }  = require('../middleware/roles');
 const sa = [requireAuth, requireRol('superadmin')];
 
 router.get('/stats',                      ...sa, ctrl.stats);
+router.get('/sistema',                    ...sa, ctrl.sistemaInfo);
 router.get('/centros',                    ...sa, ctrl.listCentros);
 router.post('/centros',                   ...sa, ctrl.createCentro);
 router.get('/centros/:id/usuarios',       ...sa, ctrl.listUsuariosCentro);

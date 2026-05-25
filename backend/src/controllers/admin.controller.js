@@ -104,4 +104,16 @@ function stats(req, res) {
              porCentro, page, limit, total_centros: centros });
 }
 
-module.exports = { listCentros, createCentro, createUsuario, listUsuariosCentro, toggleUsuario, deleteUsuario, stats };
+// GET /api/admin/sistema — información de almacenamiento activo
+function sistemaInfo(_req, res) {
+  const hostPath = process.env.HOST_DOCS_PATH || null;
+  const docsPath = process.env.DOCS_PATH || '/app/data/docs';
+  res.json({
+    almacenamiento: hostPath
+      ? { modo: 'carpeta_anfitrion', ruta_host: hostPath, ruta_contenedor: docsPath }
+      : { modo: 'volumen_docker',    nombre_volumen: 'calidocs_data', ruta_contenedor: docsPath },
+    cambiar: 'Edita HOST_DOCS_PATH en .env y reinicia: docker compose down && docker compose up -d --build',
+  });
+}
+
+module.exports = { listCentros, createCentro, createUsuario, listUsuariosCentro, toggleUsuario, deleteUsuario, stats, sistemaInfo };
