@@ -10,6 +10,7 @@ const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 10 * 1024 * 1024 
 router.get('/',              requireAuth, ctrl.listDocumentos);
 router.get('/buscar',        requireAuth, ctrl.buscarDocumentos);
 router.post('/',             requireAuth, requireRol('coordinador_calidad'), upload.single('archivo'), ctrl.uploadDocumento);
+router.get('/:id/ver',       requireAuth, ctrl.verDocumento);
 router.get('/:id/descargar', requireAuth, ctrl.descargarDocumento);
 router.put('/:id',           requireAuth, requireRol('coordinador_calidad'), ctrl.updateDocumento);
 router.delete('/:id',        requireAuth, requireRol('coordinador_calidad'), ctrl.deleteDocumento);

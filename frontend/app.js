@@ -39,7 +39,7 @@ function fmtFecha(iso) {
 
 // ── Cierre de modales con ESC y clic en el fondo ──────────────────────────────
 
-const MODALES = ['modal-carpeta', 'modal-renombrar', 'modal-upload', 'modal-centro', 'modal-usuario'];
+const MODALES = ['modal-carpeta', 'modal-renombrar', 'modal-upload', 'modal-centro', 'modal-usuario', 'modal-preview'];
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
@@ -261,6 +261,7 @@ function renderArbol() {
   if (nodosExpandidos.size === 0) raices.forEach(n => expandirRecursivo(n));
   root.innerHTML = '';
   raices.forEach(n => root.appendChild(crearNodo(n)));
+  initDropRootZone();
 }
 
 function expandirRecursivo(n) {
@@ -278,6 +279,7 @@ function crearNodo(n) {
 
   const row = document.createElement('div');
   row.className = 'tree-row';
+  if (tieneRol('coordinador_calidad')) row.draggable = true;
   row.innerHTML = `
     <span class="tree-toggle" style="width:16px;text-align:center;font-size:.7rem;color:var(--mid);cursor:pointer;">
       ${tieneHijos ? (expandido ? '▾' : '▸') : ' '}
@@ -289,6 +291,30 @@ function crearNodo(n) {
       <button class="tree-btn" onclick="nuevaSubcarpeta(${n.id})">+</button>
       <button class="tree-btn" style="color:var(--error);" onclick="borrarCarpeta(${n.id})">✕</button>
     </span>` : ''}`;
+
+  // Drag & drop para reordenar / mover carpetas
+  if (tieneRol('coordinador_calidad')) {
+    row.addEventListener('dragstart', e => {
+      draggedCarpetaId = n.id;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => row.style.opacity = '.4', 0);
+    });
+    row.addEventListener('dragend', () => { row.style.opacity = ''; });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (draggedCarpetaId !== n.id) row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', async e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (draggedCarpetaId === null || draggedCarpetaId === n.id) return;
+      await apiFetch(`/carpetas/${draggedCarpetaId}`, { method: 'PUT', body: { parent_id: n.id } }).catch(() => {});
+      draggedCarpetaId = null;
+      nodosExpandidos.add(n.id);
+      cargarArbol();
+    });
+  }
 
   row.querySelector('.tree-toggle').addEventListener('click', e => {
     e.stopPropagation();
@@ -313,6 +339,25 @@ function crearNodo(n) {
     li.appendChild(ul);
   }
   return li;
+}
+
+// ── Drag & drop árbol ─────────────────────────────────────────────────────────
+
+let draggedCarpetaId = null;
+
+function initDropRootZone() {
+  const zone = document.getElementById('drop-root-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', async e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (draggedCarpetaId === null) return;
+    await apiFetch(`/carpetas/${draggedCarpetaId}`, { method: 'PUT', body: { parent_id: null } }).catch(() => {});
+    draggedCarpetaId = null;
+    cargarArbol();
+  });
 }
 
 let carpetaPadreSeleccionada = null;
@@ -406,6 +451,107 @@ document.getElementById('btn-script-ps').addEventListener('click',   () => windo
 
 // ── Repositorio (F3) ──────────────────────────────────────────────────────────
 
+// ── Ordenación de tabla de documentos ────────────────────────────────────────
+
+let sortCol = 'updated_at';
+let sortDir = -1;   // -1 = desc, 1 = asc
+let docsCache = []; // última lista cargada, para re-ordenar sin petición
+
+function ordenarDocs(docs) {
+  return [...docs].sort((a, b) => {
+    const va = a[sortCol] ?? '';
+    const vb = b[sortCol] ?? '';
+    return va < vb ? -sortDir : va > vb ? sortDir : 0;
+  });
+}
+
+function actualizarCabeceras() {
+  document.querySelectorAll('.doc-table th.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+document.querySelectorAll('.doc-table th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    if (sortCol === th.dataset.col) sortDir *= -1;
+    else { sortCol = th.dataset.col; sortDir = 1; }
+    actualizarCabeceras();
+    renderDocs(ordenarDocs(docsCache));
+  });
+});
+
+function renderDocs(docs) {
+  const tbody = document.getElementById('doc-tbody');
+  tbody.innerHTML = docs.length
+    ? docs.map(d => `<tr>
+        <td>
+          <strong>${d.nombre}</strong>
+          ${d.codigo ? `<br><span style="font-size:.74rem;color:var(--mid);font-family:'DM Mono',monospace;">${d.codigo}</span>` : ''}
+        </td>
+        <td>${d.tipo || '—'}</td>
+        <td>
+          <select class="estado-select" data-id="${d.id}" style="font-size:.78rem;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--paper);cursor:pointer;">
+            <option value="borrador"  ${d.estado==='borrador'  ? 'selected':''}>Borrador</option>
+            <option value="vigente"   ${d.estado==='vigente'   ? 'selected':''}>Vigente</option>
+            <option value="obsoleto"  ${d.estado==='obsoleto'  ? 'selected':''}>Obsoleto</option>
+          </select>
+        </td>
+        <td>${d.version}</td>
+        <td>${fmtFecha(d.updated_at)}</td>
+        <td><div class="actions">
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:.78rem;" onclick="abrirPreview(${d.id},'${(d.nombre||'').replace(/'/g,"\\'")}','${d.extension||''}')">👁</button>
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:.78rem;" onclick="descargarDoc(${d.id})">⬇</button>
+          <button class="btn btn-danger"  style="padding:4px 10px;font-size:.78rem;" onclick="eliminarDoc(${d.id})">✕</button>
+        </div></td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" style="color:var(--mid);text-align:center;padding:20px;">Sin documentos</td></tr>';
+
+  tbody.querySelectorAll('.estado-select').forEach(sel => {
+    sel.addEventListener('change', async e => {
+      const id = e.target.dataset.id;
+      try {
+        await apiFetch(`/documentos/${id}`, { method: 'PUT', body: { estado: e.target.value } });
+        docsCache = docsCache.map(d => d.id == id ? { ...d, estado: e.target.value } : d);
+      } catch (err) { cargarDocumentos(); }
+    });
+  });
+}
+
+// ── Preview de documentos ─────────────────────────────────────────────────────
+
+const PREVIEWABLES_IMG = ['jpg','jpeg','png','gif','webp','svg'];
+const PREVIEWABLES_PDF = ['pdf'];
+const PREVIEWABLES_TXT = ['txt','csv','log','md','json','xml','html','htm'];
+
+function abrirPreview(id, nombre, extension) {
+  const ext = (extension || '').toLowerCase();
+  document.getElementById('preview-titulo').textContent = nombre + (ext ? `.${ext}` : '');
+  document.getElementById('btn-preview-descargar').onclick = () => window.open(`/api/documentos/${id}/descargar`, '_blank');
+  const wrap = document.getElementById('preview-frame-wrap');
+  const url  = `/api/documentos/${id}/ver`;
+
+  if (PREVIEWABLES_PDF.includes(ext)) {
+    wrap.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="100%">`;
+  } else if (PREVIEWABLES_IMG.includes(ext)) {
+    wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;"><img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.15);"></div>`;
+  } else if (PREVIEWABLES_TXT.includes(ext)) {
+    wrap.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
+  } else {
+    wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--mid);gap:12px;">
+      <div style="font-size:3.5rem;">📄</div>
+      <div style="font-size:.95rem;">Vista previa no disponible para <strong>.${ext || 'este formato'}</strong></div>
+      <div style="font-size:.83rem;">Usa el botón Descargar para abrirlo en tu equipo.</div>
+    </div>`;
+  }
+  document.getElementById('modal-preview').style.display = 'flex';
+}
+
+document.getElementById('btn-close-preview').addEventListener('click', () => {
+  document.getElementById('modal-preview').style.display = 'none';
+  document.getElementById('preview-frame-wrap').innerHTML = '';
+});
+
 // Puebla el select de filtro por carpeta reutilizando arbolData en caché
 function poblarFiltrosCarpeta() {
   const sel = document.getElementById('repo-filtro-carpeta');
@@ -430,8 +576,7 @@ function poblarFiltrosCarpeta() {
 }
 
 async function cargarDocumentos(query = '') {
-  const tbody    = document.getElementById('doc-tbody');
-  const carpeta  = document.getElementById('repo-filtro-carpeta')?.value;
+  const carpeta = document.getElementById('repo-filtro-carpeta')?.value;
   try {
     let docs;
     if (query) {
@@ -441,39 +586,9 @@ async function cargarDocumentos(query = '') {
     } else {
       docs = await apiFetch('/documentos');
     }
-    tbody.innerHTML = docs.length
-      ? docs.map(d => `<tr>
-          <td>
-            <strong>${d.nombre}</strong>
-            ${d.codigo ? `<br><span style="font-size:.74rem;color:var(--mid);font-family:'DM Mono',monospace;">${d.codigo}</span>` : ''}
-          </td>
-          <td>${d.tipo || '—'}</td>
-          <td>
-            <select class="estado-select" data-id="${d.id}" style="font-size:.78rem;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--paper);cursor:pointer;">
-              <option value="borrador"  ${d.estado==='borrador'  ? 'selected':''}>Borrador</option>
-              <option value="vigente"   ${d.estado==='vigente'   ? 'selected':''}>Vigente</option>
-              <option value="obsoleto"  ${d.estado==='obsoleto'  ? 'selected':''}>Obsoleto</option>
-            </select>
-          </td>
-          <td>${d.version}</td>
-          <td>${fmtFecha(d.updated_at)}</td>
-          <td><div class="actions">
-            <button class="btn btn-outline" style="padding:4px 10px;font-size:.78rem;" onclick="descargarDoc(${d.id})">⬇</button>
-            <button class="btn btn-danger"  style="padding:4px 10px;font-size:.78rem;" onclick="eliminarDoc(${d.id})">✕</button>
-          </div></td>
-        </tr>`).join('')
-      : '<tr><td colspan="6" style="color:var(--mid);text-align:center;padding:20px;">Sin documentos</td></tr>';
-
-    // Escucha cambios de estado en los selects recién creados
-    tbody.querySelectorAll('.estado-select').forEach(sel => {
-      sel.addEventListener('change', async e => {
-        const id     = e.target.dataset.id;
-        const estado = e.target.value;
-        try {
-          await apiFetch(`/documentos/${id}`, { method: 'PUT', body: { estado } });
-        } catch (err) { showMsg('', err.message); cargarDocumentos(query); }
-      });
-    });
+    docsCache = docs;
+    actualizarCabeceras();
+    renderDocs(ordenarDocs(docsCache));
   } catch {}
 }
 

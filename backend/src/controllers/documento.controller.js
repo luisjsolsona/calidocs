@@ -95,6 +95,32 @@ function descargarDocumento(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /api/documentos/:id/ver — preview inline (sin forzar descarga)
+function verDocumento(req, res, next) {
+  try {
+    const doc = Documento.findById(req.params.id);
+    if (!doc || doc.id_centro !== req.usuario.id_centro)
+      return res.status(404).json({ error: 'Documento no encontrado' });
+    if (!isSafePath(doc.archivo_path))
+      return res.status(400).json({ error: 'Ruta inválida' });
+    const filePath = path.join(DOCS_ROOT, doc.archivo_path);
+    if (!fs.existsSync(filePath))
+      return res.status(404).json({ error: 'Archivo no encontrado en el servidor' });
+
+    const mimes = {
+      pdf: 'application/pdf',
+      jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      txt: 'text/plain; charset=utf-8',
+      svg: 'image/svg+xml',
+    };
+    const mime = mimes[doc.extension?.toLowerCase()] || 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.nombre)}.${doc.extension}"`);
+    res.sendFile(filePath);
+  } catch (err) { next(err); }
+}
+
 // PUT /api/documentos/:id
 function updateDocumento(req, res, next) {
   try {
@@ -132,4 +158,4 @@ function detectarTipo(nombre) {
   return 'otro';
 }
 
-module.exports = { listDocumentos, buscarDocumentos, uploadDocumento, descargarDocumento, updateDocumento, deleteDocumento };
+module.exports = { listDocumentos, buscarDocumentos, uploadDocumento, verDocumento, descargarDocumento, updateDocumento, deleteDocumento };

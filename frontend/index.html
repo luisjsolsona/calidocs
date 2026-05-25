@@ -127,6 +127,26 @@ textarea{min-height:80px;resize:vertical;}
 #logo-preview img{width:100%;height:100%;object-fit:contain;}
 #logo-preview span{font-size:.72rem;color:var(--mid);text-align:center;padding:6px;}
 
+/* ── DRAG & DROP ÁRBOL ── */
+.tree-row.drag-over{background:#dbeafe;outline:2px dashed var(--accent2);border-radius:6px;}
+.tree-row[draggable]{cursor:grab;}
+.tree-row[draggable]:active{cursor:grabbing;}
+#drop-root-zone{border:2px dashed transparent;border-radius:8px;padding:6px 10px;font-size:.78rem;color:var(--mid);text-align:center;transition:all .15s;margin-top:8px;}
+#drop-root-zone.drag-over{border-color:var(--accent2);background:#eff6ff;color:var(--accent2);}
+
+/* ── MODAL PREVIEW ── */
+#modal-preview{flex-direction:column;}
+#preview-frame-wrap{flex:1;overflow:auto;background:#f1f1f1;}
+#preview-frame-wrap embed,#preview-frame-wrap iframe{width:100%;height:100%;border:none;display:block;}
+#preview-frame-wrap img{max-width:100%;display:block;margin:auto;padding:20px;}
+
+/* ── TABLA ORDENABLE ── */
+.doc-table th.sortable{cursor:pointer;user-select:none;}
+.doc-table th.sortable:hover{color:var(--ink);}
+.sort-icon{margin-left:4px;font-size:.7rem;opacity:.5;}
+.doc-table th.sort-asc .sort-icon::after{content:'▲';}
+.doc-table th.sort-desc .sort-icon::after{content:'▼';}
+
 /* ── FILA CENTRO CLICKEABLE ── */
 #centros-tbody tr{cursor:pointer;}
 #centros-tbody tr:hover td{background:#eff6ff;}
@@ -254,6 +274,7 @@ textarea{min-height:80px;resize:vertical;}
         <div class="panel-head">🗂 Árbol de carpetas</div>
         <div class="panel-body" style="padding:12px;">
           <ul class="tree" id="arbol-root"></ul>
+          <div id="drop-root-zone">↑ Arrastra aquí para mover a la raíz</div>
         </div>
       </div>
       <!-- Modal nueva carpeta -->
@@ -338,7 +359,14 @@ textarea{min-height:80px;resize:vertical;}
         <div class="panel-head">📄 Documentos</div>
         <div class="panel-body" style="padding:0;">
           <table class="doc-table">
-            <thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th>Versión</th><th>Fecha</th><th></th></tr></thead>
+            <thead><tr>
+              <th class="sortable" data-col="nombre">Nombre<span class="sort-icon"></span></th>
+              <th class="sortable" data-col="tipo">Tipo<span class="sort-icon"></span></th>
+              <th>Estado</th>
+              <th class="sortable" data-col="version">Versión<span class="sort-icon"></span></th>
+              <th class="sortable" data-col="updated_at">Fecha<span class="sort-icon"></span></th>
+              <th></th>
+            </tr></thead>
             <tbody id="doc-tbody"><tr><td colspan="6" style="color:var(--mid);text-align:center;padding:20px;">Cargando…</td></tr></tbody>
           </table>
         </div>
@@ -476,6 +504,18 @@ textarea{min-height:80px;resize:vertical;}
     </div>
 
   </main>
+</div>
+
+<!-- Modal preview de documentos -->
+<div id="modal-preview" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:92%;max-width:980px;height:88vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.35);overflow:hidden;">
+    <div style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <span id="preview-titulo" style="font-weight:600;font-size:.95rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button class="btn btn-outline" id="btn-preview-descargar" style="margin-right:8px;font-size:.8rem;padding:6px 14px;">⬇ Descargar</button>
+      <button class="btn btn-outline" id="btn-close-preview" style="font-size:.8rem;padding:6px 12px;">✕ Cerrar</button>
+    </div>
+    <div id="preview-frame-wrap" style="flex:1;overflow:auto;background:#f5f5f5;"></div>
+  </div>
 </div>
 
 <script src="app.js"></script>
