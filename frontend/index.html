@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaliDocs — SGC-IES</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:     #1a1a2e;
+    --paper:   #f5f0e8;
+    --cream:   #ede8dc;
+    --accent:  #c0392b;
+    --accent2: #2980b9;
+    --gold:    #d4a843;
+    --mid:     #6b6b7a;
+    --border:  #d0c9b8;
+    --success: #27ae60;
+    --card:    #ffffff;
+    --error:   #e74c3c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ── CABECERA ── */
+  header {
+    background: var(--ink);
+    color: white;
+    padding: 20px 40px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent2));
+  }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 1.7rem; }
+  header span { font-size: 0.78rem; opacity: 0.45; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── NAV BAR (oculta hasta login) ── */
+  #navbar {
+    background: var(--cream);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 40px;
+    display: none;
+    gap: 8px;
+    align-items: center;
+  }
+  #navbar.visible { display: flex; }
+  .nav-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--ink);
+    transition: background .15s;
+  }
+  .nav-btn:hover { background: var(--cream); }
+  .nav-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .nav-sep { flex: 1; }
+  #nav-usuario { font-size: 0.8rem; color: var(--mid); font-family: 'DM Mono', monospace; }
+  #btn-logout { color: var(--accent); border-color: var(--accent); }
+
+  /* ── CONTENEDOR ── */
+  main { max-width: 720px; margin: 48px auto; padding: 0 24px; }
+
+  /* ── PANEL GENÉRICO ── */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(26,26,46,0.07);
+    margin-bottom: 28px;
+  }
+  .panel-head {
+    background: var(--ink);
+    color: white;
+    padding: 16px 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .panel-body { padding: 28px 24px; }
+
+  /* ── FORMULARIO ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-grid .full { grid-column: 1 / -1; }
+
+  label { display: block; font-size: 0.82rem; font-weight: 500; color: var(--mid); margin-bottom: 4px; }
+  input, textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem;
+    color: var(--ink);
+    background: var(--paper);
+    transition: border-color .15s;
+    outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--accent2); }
+  textarea { min-height: 72px; resize: vertical; }
+
+  .btn-primary {
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s;
+    margin-top: 8px;
+  }
+  .btn-primary:hover { opacity: .85; }
+  .btn-primary:disabled { opacity: .45; cursor: default; }
+
+  /* ── LOGO PREVIEW ── */
+  #logo-preview {
+    width: 120px;
+    height: 120px;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--paper);
+  }
+  #logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+  #logo-preview span { font-size: 0.78rem; color: var(--mid); text-align: center; padding: 8px; }
+
+  /* ── MENSAJES ── */
+  .msg {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .msg.visible { display: block; }
+  .msg.error   { background: #fdf2f2; border: 1px solid #f5c6c6; color: var(--error); }
+  .msg.ok      { background: #f0faf5; border: 1px solid #a8d5b8; color: var(--success); }
+
+  /* ── SECCIONES ── */
+  .seccion { display: none; }
+  .seccion.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CaliDocs</h1>
+  <span>SGC — Formación Profesional</span>
+</header>
+
+<nav id="navbar">
+  <button class="nav-btn active" data-sec="centro">Configuración del centro</button>
+  <span class="nav-sep"></span>
+  <span id="nav-usuario"></span>
+  <button class="nav-btn" id="btn-logout">Cerrar sesión</button>
+</nav>
+
+<main>
+
+  <!-- ── LOGIN ──────────────────────────────────────── -->
+  <section id="sec-login" class="seccion visible">
+    <div class="panel">
+      <div class="panel-head">Acceso al sistema</div>
+      <div class="panel-body">
+        <div id="login-msg" class="msg error"></div>
+        <div class="form-grid">
+          <div class="full">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" placeholder="usuario@instituto.es" autocomplete="username">
+          </div>
+          <div class="full">
+            <label for="login-pass">Contraseña</label>
+            <input type="password" id="login-pass" autocomplete="current-password">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-login">Entrar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONFIGURACIÓN DEL CENTRO ───────────────────── -->
+  <section id="sec-centro" class="seccion">
+    <div class="panel">
+      <div class="panel-head">Datos del centro</div>
+      <div class="panel-body">
+        <div id="centro-msg" class="msg"></div>
+        <div style="display:flex; gap:24px; align-items:flex-start; margin-bottom:24px;">
+          <div>
+            <label>Logo del centro</label>
+            <div id="logo-preview" title="Haz clic para cambiar el logo">
+              <span>Sin logo<br>Haz clic para subir</span>
+            </div>
+            <input type="file" id="logo-input" accept="image/*" style="display:none">
+          </div>
+          <div style="flex:1;">
+            <div class="form-grid">
+              <div class="full">
+                <label for="c-nombre">Nombre del centro</label>
+                <input type="text" id="c-nombre" placeholder="IES Nombre del Centro">
+              </div>
+              <div>
+                <label for="c-codigo">Código de centro</label>
+                <input type="text" id="c-codigo" placeholder="50012345">
+              </div>
+              <div>
+                <label for="c-año">Año académico</label>
+                <input type="text" id="c-año" placeholder="2024-2025">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="full">
+            <label for="c-dir">Dirección</label>
+            <input type="text" id="c-dir" placeholder="C/ Mayor, 1 — 00000 Localidad">
+          </div>
+          <div>
+            <label for="c-tel">Teléfono</label>
+            <input type="text" id="c-tel" placeholder="978 000 000">
+          </div>
+          <div>
+            <label for="c-email">Email del centro</label>
+            <input type="email" id="c-email" placeholder="secretaria@instituto.es">
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-guardar-centro">Guardar cambios</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

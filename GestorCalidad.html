@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GestorCalidad — Sistema de Documentación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b27;
+    --bg3: #1e2535;
+    --border: #2a3347;
+    --accent: #3b82f6;
+    --accent2: #60a5fa;
+    --accent-dim: rgba(59,130,246,0.15);
+    --gold: #f59e0b;
+    --gold-dim: rgba(245,158,11,0.15);
+    --green: #10b981;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --folder: #f59e0b;
+    --file: #94a3b8;
+    --selected: rgba(59,130,246,0.2);
+    --drag-over: rgba(59,130,246,0.3);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+
+  .brand {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent2);
+    margin-right: 12px;
+    white-space: nowrap;
+    letter-spacing: -0.5px;
+  }
+  .brand span { color: var(--gold); }
+
+  .sep { width: 1px; height: 28px; background: var(--border); margin: 0 4px; flex-shrink:0; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn:hover { background: var(--bg); border-color: var(--accent); color: var(--accent2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: rgba(239,68,68,0.1); }
+  .btn.gold { border-color: var(--gold); color: var(--gold); }
+  .btn.gold:hover { background: var(--gold-dim); }
+  .btn svg { width:14px; height:14px; }
+
+  /* ── INFO BAR ── */
+  #infobar {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 4px 16px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  #infobar span {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+  #infobar .val { color: var(--text2); }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  #left {
+    width: 380px;
+    min-width: 220px;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    resize: none;
+  }
+
+  #left-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--bg2);
+  }
+  #left-header h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  #left-header .tree-actions { display:flex; gap:4px; }
+  #left-header .tree-actions button {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  #left-header .tree-actions button:hover { color: var(--text); background: var(--bg3); }
+
+  #tree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  #tree-container::-webkit-scrollbar { width: 4px; }
+  #tree-container::-webkit-scrollbar-track { background: transparent; }
+  #tree-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── TREE NODES ── */
+  .tree-node {
+    user-select: none;
+  }
+
+  .tree-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px 4px 0;
+    border-radius: 4px;
+    margin: 1px 4px;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .tree-item:hover { background: var(--bg3); }
+  .tree-item.selected { background: var(--selected); }
+  .tree-item.drag-over { background: var(--drag-over) !important; outline: 1px dashed var(--accent); }
+
+  .tree-toggle {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text3);
+    transition: transform 0.15s;
+    font-size: 10px;
+  }
+  .tree-toggle.open { transform: rotate(90deg); }
+  .tree-toggle.empty { opacity: 0; pointer-events: none; }
+
+  .tree-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tree-name {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .tree-name.folder-name { color: var(--gold); }
+
+  .tree-rename-btn {
+    opacity: 0;
+    transition: opacity 0.1s;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text3);
+    font-size: 10px;
+    padding: 1px 6px;
+    cursor: pointer;
+    margin-right: 4px;
+    white-space: nowrap;
+    font-family: var(--sans);
+  }
+  .tree-item:hover .tree-rename-btn { opacity: 1; }
+  .tree-rename-btn:hover { color: var(--accent2); border-color: var(--accent); }
+
+  .tree-del-btn {
+    opacity: 0;
+    transition: opacity 0.1s;
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .tree-item:hover .tree-del-btn { opacity: 1; }
+  .tree-del-btn:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+
+  .tree-children {
+    display: none;
+    padding-left: 16px;
+  }
+  .tree-children.open { display: block; }
+
+  /* drag handle */
+  .tree-item[draggable="true"] { cursor: grab; }
+  .tree-item.dragging { opacity: 0.4; }
+
+  /* ── RIGHT PANEL ── */
+  #right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* Search */
+  #search-bar {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #search-bar label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    white-space: nowrap;
+  }
+  #search-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--mono);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search-input:focus { border-color: var(--accent); }
+  #search-input::placeholder { color: var(--text3); }
+  #search-clear {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    transition: color 0.15s;
+  }
+  #search-clear:hover { color: var(--text); }
+
+  #search-results {
+    display: none;
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: 200px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  #search-results.visible { display: flex; }
+  .search-result-item {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-result-item:hover { background: var(--bg3); color: var(--text); }
+  .search-result-item .result-type { color: var(--text3); font-size: 10px; }
+
+  /* Preview */
+  #preview-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #preview-header h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  #preview-path {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+  }
+
+  #preview-area {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    position: relative;
+  }
+
+  #preview-empty {
+    text-align: center;
+    color: var(--text3);
+  }
+  #preview-empty .icon { font-size: 48px; margin-bottom: 12px; }
+  #preview-empty p { font-size: 13px; }
+
+  #preview-text {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--bg);
+    line-height: 1.7;
+    align-self: stretch;
+  }
+  #preview-text::-webkit-scrollbar { width: 4px; }
+  #preview-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  #preview-pdf::-webkit-scrollbar { width: 6px; }
+  #preview-pdf::-webkit-scrollbar-thumb { background: #666; border-radius: 3px; }
+
+  #preview-pdf canvas {
+    display: block;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    border-radius: 2px;
+  }
+
+  /* ── MODALS ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    pointer-events: none;
+    padding: 16px;
+  }
+  .modal-overlay.open { pointer-events: all; }
+
+  /* folder/file modals get darkened background */
+  #modal-folder.modal-overlay,
+  #modal-file.modal-overlay {
+    background: rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #modal-folder.modal-overlay.open,
+  #modal-file.modal-overlay.open { opacity: 1; }
+
+  /* codificar modal: semi-transparent so tree stays visible */
+  #modal-codificar.modal-overlay {
+    background: rgba(0,0,0,0.35);
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #modal-codificar.modal-overlay.open { opacity: 1; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    width: 560px;
+    max-width: 95vw;
+    max-height: 92vh;
+    overflow-y: auto;
+    transform: translateY(12px) scale(0.98);
+    transition: transform 0.25s, opacity 0.25s;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .modal-overlay.open .modal {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* codificar modal — wider and centered */
+  #modal-codificar .modal {
+    width: 780px;
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+
+  .modal h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .modal h3 .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--accent-dim);
+    color: var(--accent2);
+    font-weight: 500;
+    font-family: var(--mono);
+  }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--sans);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group input::placeholder { color: var(--text3); }
+  .form-group select option { background: var(--bg3); }
+
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+
+  .code-preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent2);
+    margin-top: 12px;
+    min-height: 36px;
+    word-break: break-all;
+  }
+  .code-preview .label { color: var(--text3); font-size: 11px; display: block; margin-bottom: 4px; }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .coding-section {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .coding-section h4 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text3);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .coding-section h4::before {
+    content: '';
+    width: 3px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 2px;
+    display: block;
+  }
+
+  /* ── EMPTY STATE ── */
+  #empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text3);
+    text-align: center;
+    padding: 40px;
+  }
+  #empty-state .logo {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--border);
+    margin-bottom: 16px;
+    letter-spacing: -2px;
+  }
+  #empty-state p { font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+
+  /* Context menu */
+  #ctx-menu {
+    position: fixed;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 500;
+    min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: none;
+  }
+  #ctx-menu.visible { display: block; }
+  .ctx-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.1s;
+  }
+  .ctx-item:hover { background: var(--bg3); color: var(--text); }
+  .ctx-item.danger { color: var(--red); }
+  .ctx-item.danger:hover { background: rgba(239,68,68,0.1); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Resize handle */
+  #resize-handle {
+    width: 4px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  #resize-handle:hover { background: var(--accent); }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--text);
+    z-index: 2000;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 320px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success .dot { background: var(--green); }
+  #toast.error .dot { background: var(--red); }
+  #toast.info .dot { background: var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Inline rename input */
+  .tree-inline-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 6px;
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: var(--mono);
+    outline: none;
+  }
+
+  .drop-zone-hint {
+    position: absolute;
+    inset: 0;
+    border: 2px dashed var(--accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--drag-over);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 10;
+    font-size: 13px;
+    color: var(--accent2);
+    gap: 8px;
+  }
+  .tree-item.drag-over .drop-zone-hint { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="brand">Gestor<span>Calidad</span></div>
+  <div class="sep"></div>
+
+  <button class="btn primary" onclick="openFolder()" title="Seleccionar carpeta raíz">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    Abrir Carpeta
+  </button>
+
+  <div class="sep"></div>
+
+  <button class="btn gold" onclick="openCodificarModal()" title="Crear/Renombrar con codificación">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+    Codificar
+  </button>
+
+  <div class="sep"></div>
+
+  <button class="btn" onclick="addFolderInSelected()" title="Nueva carpeta en selección">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+    + Carpeta
+  </button>
+
+  <button class="btn" onclick="addFileInSelected()" title="Nuevo fichero en selección">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+    + Fichero
+  </button>
+
+  <div class="sep"></div>
+
+  <button class="btn" onclick="collapseAll()">▲ Plegar todo</button>
+  <button class="btn" onclick="expandAll()">▼ Desplegar todo</button>
+
+  <div class="sep"></div>
+
+  <button class="btn danger" onclick="closeApp()" title="Cerrar aplicación">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    Cerrar
+  </button>
+</div>
+
+<!-- INFO BAR -->
+<div id="infobar">
+  <span>Base: <span class="val" id="info-base">—</span></span>
+  <span>Selección: <span class="val" id="info-sel">—</span></span>
+  <span id="info-count" style="margin-left:auto"></span>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- LEFT: TREE -->
+  <div id="left">
+    <div id="left-header">
+      <h2>Estructura</h2>
+      <div id="root-drop-zone" style="display:none;align-items:center;gap:6px;padding:3px 8px;border-radius:5px;border:1px dashed var(--accent);background:var(--accent-dim);font-size:11px;color:var(--accent2);cursor:pointer" title="Soltar aquí para mover a la raíz">
+        📁 Mover a raíz
+      </div>
+      <div class="tree-actions">
+        <button onclick="collapseAll()" title="Plegar todo">▲</button>
+        <button onclick="expandAll()" title="Desplegar todo">▼</button>
+      </div>
+    </div>
+    <div id="tree-container">
+      <div id="empty-state">
+        <div class="logo">GC/</div>
+        <p>Abre una carpeta del sistema<br>para comenzar a gestionar<br>la documentación de calidad.</p>
+        <button class="btn primary" onclick="openFolder()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Abrir Carpeta
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESIZE -->
+  <div id="resize-handle"></div>
+
+  <!-- RIGHT: SEARCH + PREVIEW -->
+  <div id="right">
+    <div id="search-bar">
+      <label>🔍 Buscador</label>
+      <input type="text" id="search-input" placeholder="Buscar carpetas y ficheros..." oninput="doSearch(this.value)">
+      <button id="search-clear" onclick="clearSearch()">×</button>
+    </div>
+    <div id="search-results"></div>
+
+    <div id="preview-header">
+      <h2>Previsualización</h2>
+      <div id="preview-path">—</div>
+    </div>
+
+    <div id="preview-area">
+      <!-- Empty state -->
+      <div id="preview-empty">
+        <div class="icon">📄</div>
+        <p>Selecciona un fichero para previsualizarlo</p>
+      </div>
+      <!-- Image -->
+      <img id="preview-img" alt="preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;">
+      <!-- Text/code -->
+      <pre id="preview-text" style="display:none"></pre>
+      <!-- PDF via PDF.js canvas -->
+      <div id="preview-pdf" style="display:none;width:100%;height:100%;overflow-y:auto;background:#525659;padding:12px;box-sizing:border-box;">
+        <div id="pdf-pages" style="display:flex;flex-direction:column;align-items:center;gap:8px;"></div>
+        <div id="pdf-controls" style="position:sticky;bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(0,0,0,0.7);border-radius:20px;padding:6px 14px;margin-top:8px;width:fit-content;margin-left:auto;margin-right:auto;">
+          <button onclick="pdfPrevPage()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">◀</button>
+          <span id="pdf-pageinfo" style="font-size:12px;color:#fff;font-family:var(--mono);white-space:nowrap">— / —</span>
+          <button onclick="pdfNextPage()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">▶</button>
+          <span style="color:#666;margin:0 4px">|</span>
+          <button onclick="pdfZoomOut()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;">－</button>
+          <span id="pdf-zoom" style="font-size:12px;color:#fff;font-family:var(--mono)">100%</span>
+          <button onclick="pdfZoomIn()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;">＋</button>
+        </div>
+      </div>
+      <!-- Office / unsupported info card -->
+      <div id="preview-info" style="display:none;padding:32px;max-width:420px;width:100%">
+        <div id="preview-info-icon" style="font-size:56px;text-align:center;margin-bottom:16px"></div>
+        <div id="preview-info-name" style="font-family:var(--mono);font-size:14px;color:var(--text);text-align:center;margin-bottom:8px;word-break:break-all"></div>
+        <div id="preview-info-size" style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:20px"></div>
+        <div id="preview-info-extra" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text2);line-height:1.8;font-family:var(--mono)"></div>
+        <div style="margin-top:16px;text-align:center">
+          <button class="btn" onclick="openFileExternal()" style="margin:0 auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Abrir con aplicación del sistema
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="ctxAction('open')">👁 Abrir / Previsualizar</div>
+  <div class="ctx-item" onclick="ctxAction('rename')">✏️ Renombrar</div>
+  <div class="ctx-item" onclick="ctxAction('code-rename')">🏷 Renombrar con código</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="ctxAction('new-folder')">📁 Nueva carpeta aquí</div>
+  <div class="ctx-item" onclick="ctxAction('new-file')">📄 Nuevo fichero aquí</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="ctxAction('delete')">🗑 Eliminar</div>
+</div>
+
+<!-- MODAL: CODIFICAR -->
+<div class="modal-overlay" id="modal-codificar">
+  <div class="modal">
+    <h3 style="margin-bottom:14px">
+      🏷 Codificar Elemento
+      <span class="badge">Sistema de Calidad</span>
+      <button onclick="closeModal('modal-codificar')" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:0 2px" title="Cerrar">×</button>
+    </h3>
+
+    <!-- Current name + result -->
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Nombre actual</div>
+        <div id="cod-current-name" style="font-family:var(--mono);font-size:12px;color:var(--text2);word-break:break-all">—</div>
+      </div>
+      <div style="flex:1;background:var(--accent-dim);border:1px solid var(--accent);border-radius:6px;padding:8px 12px">
+        <div style="font-size:10px;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Resultado</div>
+        <div id="cod-preview-val" style="font-family:var(--mono);font-size:12px;color:var(--accent2);font-weight:600;word-break:break-all">—</div>
+      </div>
+    </div>
+
+    <!-- Coding reference -->
+    <details style="margin-bottom:14px">
+      <summary style="font-size:11px;color:var(--text3);cursor:pointer;padding:6px 0;user-select:none;font-weight:600;letter-spacing:0.5px;text-transform:uppercase">📖 Referencia de Codificación</summary>
+      <div style="margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;color:var(--text2);font-family:var(--mono);line-height:1.9">
+        <div style="color:var(--gold);font-weight:600;margin-bottom:4px">Bloque 1 · Código del macroproceso</div>
+        <div>· Letra: E (Estratégico), O (Operativo), S (Soporte)</div>
+        <div>· Número: Macroproceso dentro de su categoría</div>
+        <div style="color:var(--text3)">  Ej: E2, O1, S1</div>
+        <div style="color:var(--gold);font-weight:600;margin-top:8px;margin-bottom:4px">Bloque 2 · Código del proceso</div>
+        <div>· Letra: P (proceso)</div>
+        <div>· Número: Proceso dentro de la categoría</div>
+        <div style="color:var(--text3)">  Ej: E2-P3, O1-P1</div>
+        <div style="color:var(--gold);font-weight:600;margin-top:8px;margin-bottom:4px">Bloque 3 · Código del subproceso</div>
+        <div>· Código: S1, S2, S3…</div>
+        <div style="color:var(--gold);font-weight:600;margin-top:8px;margin-bottom:4px">Bloque 4 · Tipo de documento</div>
+        <div>· P: proceso &nbsp;&nbsp; IT: instrucción técnica</div>
+      </div>
+    </details>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <!-- B1 -->
+      <div class="coding-section" style="margin-bottom:0">
+        <h4>Bloque 1 — Macroproceso</h4>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Categoría</label>
+            <select id="cod-cat" onchange="updateCode()">
+              <option value="">—</option>
+              <option value="E">E — Estratégico</option>
+              <option value="O">O — Operativo</option>
+              <option value="S">S — Soporte</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Nº</label>
+            <input type="number" id="cod-macro-num" min="1" max="99" placeholder="1" oninput="updateCode()">
+          </div>
+        </div>
+      </div>
+      <!-- B2 -->
+      <div class="coding-section" style="margin-bottom:0">
+        <h4>Bloque 2 — Proceso</h4>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Nº de proceso</label>
+          <input type="number" id="cod-proc-num" min="1" max="99" placeholder="1" oninput="updateCode()">
+        </div>
+      </div>
+      <!-- B3 -->
+      <div class="coding-section" style="margin-bottom:0">
+        <h4>Bloque 3 — Subproceso</h4>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Nº subproceso (opcional)</label>
+          <input type="number" id="cod-sub-num" min="1" max="99" placeholder="opcional" oninput="updateCode()">
+        </div>
+      </div>
+      <!-- B4 -->
+      <div class="coding-section" style="margin-bottom:0">
+        <h4>Bloque 4 — Tipo documento</h4>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Tipo</label>
+          <select id="cod-type" onchange="updateCode()">
+            <option value="">— Sin tipo —</option>
+            <option value="P">P — Proceso</option>
+            <option value="IT">IT — Instrucción Técnica</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <div class="form-group">
+      <label>Descripción / Nombre adicional (opcional)</label>
+      <input type="text" id="cod-desc" placeholder="ACOGIDA_MIEMBROS..." oninput="updateCode()">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-codificar')">Cancelar</button>
+      <button class="btn primary" onclick="applyCodification()">✔ Aplicar nombre</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVA CARPETA -->
+<div class="modal-overlay" id="modal-folder">
+  <div class="modal">
+    <h3>📁 Nueva Carpeta</h3>
+    <div class="form-group">
+      <label>Nombre de la carpeta</label>
+      <input type="text" id="folder-name-input" placeholder="Nombre..." onkeydown="if(event.key==='Enter') confirmNewFolder()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-folder')">Cancelar</button>
+      <button class="btn primary" onclick="confirmNewFolder()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO FICHERO -->
+<div class="modal-overlay" id="modal-file">
+  <div class="modal">
+    <h3>📄 Nuevo Fichero</h3>
+    <div class="form-group">
+      <label>Nombre del fichero (con extensión)</label>
+      <input type="text" id="file-name-input" placeholder="documento.pdf..." onkeydown="if(event.key==='Enter') confirmNewFile()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-file')">Cancelar</button>
+      <button class="btn primary" onclick="confirmNewFile()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><div class="dot"></div><span id="toast-msg"></span></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let rootHandle = null;
+let tree = []; // [{name, type:'folder'|'file', handle, children, path, parentPath, parentHandle}]
+let selectedNode = null;
+let contextNode = null;
+let dragNode = null;
+let codTarget = null; // node to rename with codification
+
+// ═══════════════════════════════════════════════════════════
+// FILE SYSTEM ACCESS API
+// ═══════════════════════════════════════════════════════════
+async function openFolder() {
+  if (!window.showDirectoryPicker) {
+    toast('Tu navegador no soporta la API de acceso al sistema de ficheros (usa Chrome/Edge).', 'error');
+    return;
+  }
+  try {
+    rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    document.getElementById('info-base').textContent = rootHandle.name;
+    toast('Carpeta abierta: ' + rootHandle.name, 'success');
+    tree = await buildTree(rootHandle, rootHandle.name, null, null);
+    renderTree();
+  } catch(e) {
+    if (e.name !== 'AbortError') toast('Error al abrir carpeta.', 'error');
+  }
+}
+
+async function buildTree(dirHandle, path, parentPath, parentHandle) {
+  const nodes = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    const node = {
+      name,
+      type: handle.kind === 'directory' ? 'folder' : 'file',
+      handle,
+      path: path + '/' + name,
+      parentPath: path,
+      parentHandle: dirHandle,
+      children: [],
+      open: false
+    };
+    if (handle.kind === 'directory') {
+      node.children = await buildTree(handle, node.path, path, dirHandle);
+    }
+    nodes.push(node);
+  }
+  nodes.sort((a,b) => {
+    if (a.type === b.type) return a.name.localeCompare(b.name);
+    return a.type === 'folder' ? -1 : 1;
+  });
+  return nodes;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREE RENDERING
+// ═══════════════════════════════════════════════════════════
+function renderTree() {
+  const container = document.getElementById('tree-container');
+  container.innerHTML = '';
+  if (!tree.length) {
+    container.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:12px;text-align:center">Carpeta vacía</div>';
+    updateCount();
+    return;
+  }
+  const ul = buildTreeDOM(tree);
+  container.appendChild(ul);
+  updateCount();
+}
+
+function buildTreeDOM(nodes) {
+  const wrapper = document.createElement('div');
+  nodes.forEach(node => {
+    const nodeDiv = document.createElement('div');
+    nodeDiv.className = 'tree-node';
+    nodeDiv.dataset.path = node.path;
+
+    const item = document.createElement('div');
+    item.className = 'tree-item';
+    item.draggable = true;
+    item.dataset.path = node.path;
+
+    // indent based on depth
+    const depth = (node.path.match(/\//g) || []).length - 1;
+    item.style.paddingLeft = (depth * 16 + 8) + 'px';
+
+    // toggle
+    const toggle = document.createElement('div');
+    toggle.className = 'tree-toggle' + (node.type === 'folder' ? (node.children.length ? '' : ' empty') : ' empty');
+    if (node.type === 'folder' && node.open) toggle.classList.add('open');
+    toggle.innerHTML = '▶';
+    toggle.onclick = (e) => { e.stopPropagation(); toggleNode(node, nodeDiv); };
+
+    // icon
+    const icon = document.createElement('div');
+    icon.className = 'tree-icon';
+    icon.innerHTML = node.type === 'folder' ? '📁' : getFileIcon(node.name);
+
+    // name
+    const nameEl = document.createElement('div');
+    nameEl.className = 'tree-name' + (node.type === 'folder' ? ' folder-name' : '');
+    nameEl.textContent = node.name;
+    nameEl.title = node.name;
+
+    // rename btn
+    const renBtn = document.createElement('button');
+    renBtn.className = 'tree-rename-btn';
+    renBtn.textContent = 'Renombrar';
+    renBtn.onclick = (e) => { e.stopPropagation(); startInlineRename(node, nameEl, renBtn); };
+
+    // delete btn
+    const delBtn = document.createElement('button');
+    delBtn.className = 'tree-del-btn';
+    delBtn.innerHTML = '×';
+    delBtn.title = 'Eliminar';
+    delBtn.onclick = (e) => { e.stopPropagation(); deleteNode(node); };
+
+    item.appendChild(toggle);
+    item.appendChild(icon);
+    item.appendChild(nameEl);
+    item.appendChild(renBtn);
+    item.appendChild(delBtn);
+
+    // click
+    item.onclick = () => selectNode(node, item);
+    item.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(e, node); };
+
+    // drag
+    item.addEventListener('dragstart', (e) => {
+      dragNode = node;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // Show root drop zone
+      if (rootHandle) document.getElementById('root-drop-zone').style.display = 'flex';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      dragNode = null;
+      document.getElementById('root-drop-zone').style.display = 'none';
+    });
+    item.addEventListener('dragover', (e) => {
+      if (!dragNode || dragNode === node) return;
+      if (node.type !== 'folder') return;
+      // Prevent drop into own descendant
+      if (node.path.startsWith(dragNode.path + '/')) return;
+      e.preventDefault();
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if (!dragNode || dragNode === node) return;
+      if (node.type !== 'folder') return;
+      if (node.path.startsWith(dragNode.path + '/')) return;
+      if (dragNode.parentPath === node.path) return;
+      await moveNode(dragNode, { handle: node.handle, name: node.name, path: node.path });
+    });
+
+    nodeDiv.appendChild(item);
+
+    // children
+    if (node.type === 'folder') {
+      const children = document.createElement('div');
+      children.className = 'tree-children' + (node.open ? ' open' : '');
+      if (node.children.length) {
+        children.appendChild(buildTreeDOM(node.children));
+      }
+      nodeDiv.appendChild(children);
+    }
+
+    wrapper.appendChild(nodeDiv);
+  });
+  return wrapper;
+}
+
+function toggleNode(node, nodeDiv) {
+  node.open = !node.open;
+  const toggle = nodeDiv.querySelector('.tree-toggle');
+  const children = nodeDiv.querySelector('.tree-children');
+  if (toggle) toggle.classList.toggle('open', node.open);
+  if (children) children.classList.toggle('open', node.open);
+}
+
+// Root drop zone
+const rootDropZone = document.getElementById('root-drop-zone');
+rootDropZone.addEventListener('dragover', (e) => {
+  if (!dragNode) return;
+  e.preventDefault();
+  rootDropZone.style.background = 'rgba(59,130,246,0.3)';
+});
+rootDropZone.addEventListener('dragleave', () => {
+  rootDropZone.style.background = 'var(--accent-dim)';
+});
+rootDropZone.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  rootDropZone.style.background = 'var(--accent-dim)';
+  rootDropZone.style.display = 'none';
+  if (!dragNode || !rootHandle) return;
+  // Already at root level?
+  if (dragNode.parentHandle === rootHandle) { toast('El elemento ya está en la raíz.', 'info'); dragNode = null; return; }
+  await moveNode(dragNode, { handle: rootHandle, name: rootHandle.name, path: rootHandle.name });
+  dragNode = null;
+});
+
+function selectNode(node, itemEl) {
+  document.querySelectorAll('.tree-item.selected').forEach(el => el.classList.remove('selected'));
+  itemEl.classList.add('selected');
+  selectedNode = node;
+  document.getElementById('info-sel').textContent = node.path;
+
+  if (node.type === 'file') previewFile(node);
+  else clearPreview();
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const icons = {
+    pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗',
+    ppt: '📙', pptx: '📙', jpg: '🖼', jpeg: '🖼', png: '🖼',
+    gif: '🖼', svg: '🖼', txt: '📄', md: '📄', html: '🌐',
+    htm: '🌐', css: '🎨', js: '⚙', json: '⚙', xml: '⚙',
+    zip: '🗜', rar: '🗜', csv: '📊'
+  };
+  return icons[ext] || '📄';
+}
+
+function updateCount() {
+  let folders = 0, files = 0;
+  function count(nodes) { nodes.forEach(n => { if(n.type==='folder'){folders++;count(n.children);}else files++; }); }
+  count(tree);
+  document.getElementById('info-count').textContent = `${folders} carpetas · ${files} ficheros`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PREVIEW SETUP
+// ═══════════════════════════════════════════════════════════
+let pdfDoc = null;
+let pdfCurrentPage = 1;
+let pdfTotalPages = 0;
+let pdfScale = 1.5;
+let currentBlobUrl = null;
+let currentFileNode = null;
+
+// Load PDF.js from CDN
+const pdfScript = document.createElement('script');
+pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+document.head.appendChild(pdfScript);
+pdfScript.onload = () => {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+};
+
+// Load mammoth for docx
+const mammothScript = document.createElement('script');
+mammothScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+document.head.appendChild(mammothScript);
+
+// Load SheetJS for xlsx/xls
+const xlsxScript = document.createElement('script');
+xlsxScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+document.head.appendChild(xlsxScript);
+
+// ── HTML (docx rendered) preview ──
+function showHtmlPreview(html, filename) {
+  let el = document.getElementById('preview-html');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'preview-html';
+    el.style.cssText = 'width:100%;height:100%;overflow-y:auto;padding:24px 32px;background:#fff;color:#111;font-family:Georgia,serif;font-size:14px;line-height:1.7;box-sizing:border-box;';
+    document.getElementById('preview-area').appendChild(el);
+  }
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+// ── XLSX table preview ──
+function showXlsxPreview(wb, filename) {
+  let el = document.getElementById('preview-xlsx');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'preview-xlsx';
+    el.style.cssText = 'width:100%;height:100%;overflow:auto;background:var(--bg);padding:0;box-sizing:border-box;';
+    document.getElementById('preview-area').appendChild(el);
+  }
+  el.innerHTML = '';
+
+  // Tab buttons for sheets
+  const tabs = document.createElement('div');
+  tabs.style.cssText = 'display:flex;gap:4px;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);flex-wrap:wrap;';
+  const tableWrap = document.createElement('div');
+  tableWrap.style.cssText = 'overflow:auto;flex:1;padding:12px;';
+  el.style.display = 'flex';
+  el.style.flexDirection = 'column';
+  el.appendChild(tabs);
+  el.appendChild(tableWrap);
+
+  wb.SheetNames.forEach((name, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = name;
+    btn.style.cssText = `padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:${idx===0?'var(--accent)':'var(--bg3)'};color:${idx===0?'#fff':'var(--text2)'};font-size:11px;cursor:pointer;font-family:var(--mono);`;
+    btn.onclick = () => {
+      tabs.querySelectorAll('button').forEach(b => { b.style.background='var(--bg3)'; b.style.color='var(--text2)'; });
+      btn.style.background = 'var(--accent)'; btn.style.color = '#fff';
+      renderSheet(wb.Sheets[name], tableWrap);
+    };
+    tabs.appendChild(btn);
+    if (idx === 0) renderSheet(wb.Sheets[name], tableWrap);
+  });
+}
+
+function renderSheet(sheet, container) {
+  const html = XLSX.utils.sheet_to_html(sheet, { editable: false });
+  container.innerHTML = `<style>
+    #preview-xlsx table { border-collapse:collapse; font-size:12px; font-family:var(--mono); color:var(--text); white-space:nowrap; }
+    #preview-xlsx td, #preview-xlsx th { border:1px solid var(--border); padding:4px 10px; }
+    #preview-xlsx tr:first-child td, #preview-xlsx tr:first-child th { background:var(--bg3); color:var(--gold); font-weight:600; position:sticky; top:0; }
+    #preview-xlsx tr:nth-child(even) { background:rgba(255,255,255,0.02); }
+  </style>` + html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PREVIEW
+// ═══════════════════════════════════════════════════════════
+async function previewFile(node) {
+  currentFileNode = node;
+  document.getElementById('preview-path').textContent = node.path;
+  hideAllPreviews();
+
+  const ext = node.name.split('.').pop().toLowerCase();
+
+  if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
+
+  try {
+    const file = await node.handle.getFile();
+
+    // ── IMAGES ──
+    if (['jpg','jpeg','png','gif','webp','bmp','ico'].includes(ext)) {
+      currentBlobUrl = URL.createObjectURL(file);
+      const img = document.getElementById('preview-img');
+      img.src = currentBlobUrl;
+      img.style.display = 'block';
+      document.getElementById('preview-empty').style.display = 'none';
+      return;
+    }
+
+    // ── SVG ──
+    if (ext === 'svg') {
+      const text = await file.text();
+      const blob = new Blob([text], {type:'image/svg+xml'});
+      currentBlobUrl = URL.createObjectURL(blob);
+      const img = document.getElementById('preview-img');
+      img.src = currentBlobUrl;
+      img.style.display = 'block';
+      document.getElementById('preview-empty').style.display = 'none';
+      return;
+    }
+
+    // ── PDF via PDF.js ──
+    if (ext === 'pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      await showPdfPreview(arrayBuffer, node.name);
+      document.getElementById('preview-empty').style.display = 'none';
+      return;
+    }
+
+    // ── DOCX via mammoth ──
+    if (['docx','doc'].includes(ext)) {
+      if (window.mammoth) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          showHtmlPreview(result.value, node.name);
+          document.getElementById('preview-empty').style.display = 'none';
+          return;
+        } catch(e) { /* fall through to info card */ }
+      }
+    }
+
+    // ── XLSX / XLS via SheetJS ──
+    if (['xlsx','xls','ods','csv'].includes(ext)) {
+      if (window.XLSX) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const wb = XLSX.read(arrayBuffer, { type: 'array' });
+          showXlsxPreview(wb, node.name);
+          document.getElementById('preview-empty').style.display = 'none';
+          return;
+        } catch(e) { /* fall through to info card */ }
+      }
+    }
+
+    // ── TEXT / CODE ──
+    if (['txt','md','csv','json','xml','html','htm','css','js','ts','log','ini','cfg','yaml','yml','bat','sh','py','java','c','cpp','h'].includes(ext)) {
+      const text = await file.text();
+      const pre = document.getElementById('preview-text');
+      pre.textContent = text;
+      pre.style.display = 'block';
+      document.getElementById('preview-empty').style.display = 'none';
+      return;
+    }
+
+    // ── OFFICE + Others: info card ──
+    showInfoCard(node, file, ext);
+    document.getElementById('preview-empty').style.display = 'none';
+
+  } catch(e) {
+    showInfoCard(node, null, ext, 'Error al leer el fichero: ' + e.message);
+    document.getElementById('preview-empty').style.display = 'none';
+  }
+}
+
+// ── PDF RENDERING ──
+async function showPdfPreview(arrayBuffer, filename) {
+  const container = document.getElementById('preview-pdf');
+  const pagesDiv = document.getElementById('pdf-pages');
+  pagesDiv.innerHTML = '<div style="color:#aaa;font-size:12px;padding:20px;font-family:var(--mono)">Cargando PDF...</div>';
+  container.style.display = 'block';
+
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    pdfDoc = await loadingTask.promise;
+    pdfTotalPages = pdfDoc.numPages;
+    pdfCurrentPage = 1;
+    updatePdfControls();
+    await renderAllPdfPages();
+  } catch(e) {
+    pagesDiv.innerHTML = `<div style="color:var(--red);font-size:12px;padding:20px;font-family:var(--mono)">Error al renderizar PDF: ${e.message}</div>`;
+  }
+}
+
+async function renderAllPdfPages() {
+  const pagesDiv = document.getElementById('pdf-pages');
+  pagesDiv.innerHTML = '';
+  const previewWidth = document.getElementById('preview-pdf').clientWidth - 24;
+
+  for (let i = 1; i <= pdfTotalPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(pdfScale, (previewWidth / viewport.width) * pdfScale);
+    const scaledViewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    canvas.id = 'pdf-page-' + i;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative';
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:10px;color:#aaa;font-family:var(--mono);margin-bottom:4px;text-align:center';
+    label.textContent = `Página ${i} / ${pdfTotalPages}`;
+    wrapper.appendChild(label);
+    wrapper.appendChild(canvas);
+    pagesDiv.appendChild(wrapper);
+
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+  }
+  updatePdfControls();
+}
+
+function updatePdfControls() {
+  document.getElementById('pdf-pageinfo').textContent = `${pdfCurrentPage} / ${pdfTotalPages}`;
+  document.getElementById('pdf-zoom').textContent = Math.round(pdfScale * 100 / 1.5 * 100) + '%';
+}
+
+async function pdfZoomIn() {
+  pdfScale = Math.min(pdfScale + 0.5, 5);
+  await renderAllPdfPages();
+}
+async function pdfZoomOut() {
+  pdfScale = Math.max(pdfScale - 0.5, 0.5);
+  await renderAllPdfPages();
+}
+function pdfPrevPage() {
+  if (pdfCurrentPage <= 1) return;
+  pdfCurrentPage--;
+  const el = document.getElementById('pdf-page-' + pdfCurrentPage);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  updatePdfControls();
+}
+function pdfNextPage() {
+  if (pdfCurrentPage >= pdfTotalPages) return;
+  pdfCurrentPage++;
+  const el = document.getElementById('pdf-page-' + pdfCurrentPage);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  updatePdfControls();
+}
+
+// ── INFO CARD for Office and unsupported ──
+function showInfoCard(node, file, ext, errorMsg) {
+  const icons = {
+    doc:'📘', docx:'📘', xls:'📗', xlsx:'📗', ppt:'📙', pptx:'📙',
+    zip:'🗜', rar:'🗜', '7z':'🗜', gz:'🗜',
+    mp4:'🎬', avi:'🎬', mkv:'🎬', mov:'🎬',
+    mp3:'🎵', wav:'🎵', flac:'🎵',
+    exe:'⚙️', msi:'⚙️', dmg:'💿',
+  };
+  const typeNames = {
+    docx:'Documento Word', doc:'Documento Word',
+    xlsx:'Hoja de cálculo Excel', xls:'Hoja de cálculo Excel',
+    pptx:'Presentación PowerPoint', ppt:'Presentación PowerPoint',
+    zip:'Archivo comprimido ZIP', rar:'Archivo comprimido RAR',
+    mp4:'Vídeo MP4', mp3:'Audio MP3',
+  };
+
+  document.getElementById('preview-info-icon').textContent = icons[ext] || '📦';
+  document.getElementById('preview-info-name').textContent = node.name;
+
+  let sizeStr = '—';
+  let extra = '';
+  if (file) {
+    const sz = file.size;
+    sizeStr = sz < 1024 ? sz + ' B' : sz < 1048576 ? (sz/1024).toFixed(1) + ' KB' : (sz/1048576).toFixed(2) + ' MB';
+    const mod = new Date(file.lastModified);
+    extra = `Tipo: ${typeNames[ext] || ext.toUpperCase() + ' file'}
+Tamaño: ${sizeStr}
+Modificado: ${mod.toLocaleDateString('es-ES')} ${mod.toLocaleTimeString('es-ES')}`;
+  }
+  if (errorMsg) extra += (extra ? '\n' : '') + errorMsg;
+
+  document.getElementById('preview-info-size').textContent = sizeStr !== '—' ? sizeStr : '';
+  document.getElementById('preview-info-extra').textContent = extra || `Formato: .${ext}\nNo hay previsualización disponible para este tipo de fichero.`;
+  document.getElementById('preview-info').style.display = 'block';
+}
+
+async function openFileExternal() {
+  if (!currentFileNode) return;
+  try {
+    const file = await currentFileNode.handle.getFile();
+    const blobUrl = URL.createObjectURL(file);
+    // Open in new tab — browser will use the OS default app or its own viewer
+    window.open(blobUrl, '_blank');
+    // Don't revoke immediately so the tab can load it
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    toast('Abriendo en nueva pestaña / aplicación externa...', 'info');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function hideAllPreviews() {
+  document.getElementById('preview-img').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('preview-text').style.display = 'none';
+  document.getElementById('preview-pdf').style.display = 'none';
+  document.getElementById('preview-info').style.display = 'none';
+  document.getElementById('preview-empty').style.display = 'flex';
+  const htmlEl = document.getElementById('preview-html');
+  if (htmlEl) htmlEl.style.display = 'none';
+  const xlsxEl = document.getElementById('preview-xlsx');
+  if (xlsxEl) xlsxEl.style.display = 'none';
+  pdfDoc = null;
+  document.getElementById('pdf-pages').innerHTML = '';
+}
+
+function clearPreview() {
+  hideAllPreviews();
+  document.getElementById('preview-path').textContent = '—';
+  currentFileNode = null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════════
+function doSearch(q) {
+  const res = document.getElementById('search-results');
+  if (!q.trim()) { res.classList.remove('visible'); res.innerHTML=''; return; }
+  const results = [];
+  function search(nodes) {
+    nodes.forEach(n => {
+      if (n.name.toLowerCase().includes(q.toLowerCase())) results.push(n);
+      if (n.children) search(n.children);
+    });
+  }
+  search(tree);
+  res.innerHTML = '';
+  if (!results.length) {
+    res.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--text3)">Sin resultados</div>';
+  } else {
+    results.slice(0,30).forEach(n => {
+      const d = document.createElement('div');
+      d.className = 'search-result-item';
+      d.innerHTML = `<span>${getFileIcon(n.name)}</span><span style="flex:1;font-size:12px">${n.name}</span><span class="result-type">${n.path.split('/').slice(1,-1).join('/')}</span>`;
+      d.onclick = () => { clearSearch(); scrollToNode(n); if(n.type==='file') previewFile(n); };
+      res.appendChild(d);
+    });
+  }
+  res.classList.add('visible');
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('search-results').classList.remove('visible');
+}
+
+function scrollToNode(node) {
+  // Expand parents and scroll
+  function expandParents(nodes, targetPath) {
+    for (const n of nodes) {
+      if (targetPath.startsWith(n.path + '/') || n.path === targetPath) {
+        n.open = true;
+        if (n.children) expandParents(n.children, targetPath);
+        return true;
+      }
+    }
+    return false;
+  }
+  expandParents(tree, node.path);
+  renderTree();
+  setTimeout(() => {
+    const el = document.querySelector(`[data-path="${CSS.escape(node.path)}"].tree-item`);
+    if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('selected'); selectedNode = node; }
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTEXT MENU
+// ═══════════════════════════════════════════════════════════
+function showContextMenu(e, node) {
+  contextNode = node;
+  const menu = document.getElementById('ctx-menu');
+  menu.style.left = e.pageX + 'px';
+  menu.style.top = e.pageY + 'px';
+  menu.classList.add('visible');
+}
+
+document.addEventListener('click', () => document.getElementById('ctx-menu').classList.remove('visible'));
+
+function ctxAction(action) {
+  const node = contextNode;
+  document.getElementById('ctx-menu').classList.remove('visible');
+  if (!node) return;
+  switch(action) {
+    case 'open': if(node.type==='file') previewFile(node); break;
+    case 'rename': startInlineRenameByPath(node); break;
+    case 'code-rename': openCodificarModal(node); break;
+    case 'new-folder': openNewFolderModal(node); break;
+    case 'new-file': openNewFileModal(node); break;
+    case 'delete': deleteNode(node); break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INLINE RENAME
+// ═══════════════════════════════════════════════════════════
+function startInlineRenameByPath(node) {
+  const item = document.querySelector(`[data-path="${CSS.escape(node.path)}"].tree-item`);
+  if (!item) return;
+  const nameEl = item.querySelector('.tree-name');
+  const renBtn = item.querySelector('.tree-rename-btn');
+  startInlineRename(node, nameEl, renBtn);
+}
+
+function startInlineRename(node, nameEl, renBtn) {
+  const input = document.createElement('input');
+  input.className = 'tree-inline-input';
+  input.value = node.name;
+  nameEl.replaceWith(input);
+  if (renBtn) renBtn.style.display = 'none';
+  input.focus();
+  input.select();
+
+  const finish = async (save) => {
+    const newName = input.value.trim();
+    input.replaceWith(nameEl);
+    if (renBtn) renBtn.style.display = '';
+    if (!save || !newName || newName === node.name) return;
+    await renameNode(node, newName);
+  };
+
+  input.onblur = () => finish(true);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+}
+
+async function renameNode(node, newName) {
+  try {
+    // File System Access API doesn't support rename natively;
+    // We simulate by creating new entry, copying content, and deleting old
+    if (node.type === 'file') {
+      const file = await node.handle.getFile();
+      const newHandle = await node.parentHandle.getFileHandle(newName, { create: true });
+      const writable = await newHandle.createWritable();
+      await writable.write(await file.arrayBuffer());
+      await writable.close();
+      await node.parentHandle.removeEntry(node.name);
+    } else {
+      toast('Renombrar carpetas no está completamente soportado en todos los navegadores.', 'info');
+      return;
+    }
+    toast(`Renombrado a: ${newName}`, 'success');
+    await refreshTree();
+  } catch(e) {
+    toast('Error al renombrar: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CREATE FOLDER / FILE
+// ═══════════════════════════════════════════════════════════
+function getTargetFolder() {
+  if (!selectedNode) {
+    if (!rootHandle) { toast('Primero abre una carpeta.', 'error'); return null; }
+    return { handle: rootHandle, path: rootHandle.name };
+  }
+  if (selectedNode.type === 'folder') return { handle: selectedNode.handle, path: selectedNode.path };
+  // parent of file
+  return { handle: selectedNode.parentHandle, path: selectedNode.parentPath };
+}
+
+function addFolderInSelected() {
+  const target = getTargetFolder();
+  if (!target) return;
+  openNewFolderModal(null, target);
+}
+
+function addFileInSelected() {
+  const target = getTargetFolder();
+  if (!target) return;
+  openNewFileModal(null, target);
+}
+
+let _newFolderTarget = null;
+function openNewFolderModal(node, target) {
+  _newFolderTarget = target || (node ? { handle: node.type==='folder'? node.handle : node.parentHandle, path: node.path } : getTargetFolder());
+  document.getElementById('folder-name-input').value = '';
+  openModal('modal-folder');
+  setTimeout(() => document.getElementById('folder-name-input').focus(), 200);
+}
+
+async function confirmNewFolder() {
+  const name = document.getElementById('folder-name-input').value.trim();
+  if (!name) return;
+  closeModal('modal-folder');
+  try {
+    await _newFolderTarget.handle.getDirectoryHandle(name, { create: true });
+    toast('Carpeta creada: ' + name, 'success');
+    await refreshTree();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+let _newFileTarget = null;
+function openNewFileModal(node, target) {
+  _newFileTarget = target || (node ? { handle: node.type==='folder'? node.handle : node.parentHandle, path: node.path } : getTargetFolder());
+  document.getElementById('file-name-input').value = '';
+  openModal('modal-file');
+  setTimeout(() => document.getElementById('file-name-input').focus(), 200);
+}
+
+async function confirmNewFile() {
+  const name = document.getElementById('file-name-input').value.trim();
+  if (!name) return;
+  closeModal('modal-file');
+  try {
+    const fileHandle = await _newFileTarget.handle.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write('');
+    await writable.close();
+    toast('Fichero creado: ' + name, 'success');
+    await refreshTree();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════════════════════════
+async function deleteNode(node) {
+  const confirmMsg = node.type === 'folder'
+    ? `¿Eliminar carpeta "${node.name}" y todo su contenido?`
+    : `¿Eliminar fichero "${node.name}"?`;
+  if (!confirm(confirmMsg)) return;
+  try {
+    await node.parentHandle.removeEntry(node.name, { recursive: true });
+    toast('Eliminado: ' + node.name, 'success');
+    if (selectedNode && selectedNode.path === node.path) { selectedNode = null; clearPreview(); }
+    await refreshTree();
+  } catch(e) {
+    toast('Error al eliminar: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOVE (DRAG & DROP)
+// ═══════════════════════════════════════════════════════════
+async function copyFileHandleToDir(fileHandle, destDirHandle, name) {
+  const file = await fileHandle.getFile();
+  const newHandle = await destDirHandle.getFileHandle(name, { create: true });
+  const writable = await newHandle.createWritable();
+  await writable.write(await file.arrayBuffer());
+  await writable.close();
+}
+
+async function copyDirHandleToDir(srcDirHandle, destDirHandle) {
+  for await (const [name, handle] of srcDirHandle.entries()) {
+    if (handle.kind === 'file') {
+      await copyFileHandleToDir(handle, destDirHandle, name);
+    } else {
+      const subDir = await destDirHandle.getDirectoryHandle(name, { create: true });
+      await copyDirHandleToDir(handle, subDir);
+    }
+  }
+}
+
+async function moveNode(node, targetFolder) {
+  try {
+    if (node.type === 'file') {
+      await copyFileHandleToDir(node.handle, targetFolder.handle, node.name);
+      await node.parentHandle.removeEntry(node.name);
+    } else {
+      // Copy folder recursively then delete original
+      const newDir = await targetFolder.handle.getDirectoryHandle(node.name, { create: true });
+      await copyDirHandleToDir(node.handle, newDir);
+      await node.parentHandle.removeEntry(node.name, { recursive: true });
+    }
+    toast(`"${node.name}" movido a "${targetFolder.name}"`, 'success');
+    await refreshTree();
+  } catch(e) {
+    toast('Error al mover: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CODIFICATION MODAL
+// ═══════════════════════════════════════════════════════════
+function openCodificarModal(node) {
+  codTarget = node || selectedNode || null;
+  // Set current name
+  const currentName = codTarget ? codTarget.name : '(nueva carpeta)';
+  document.getElementById('cod-current-name').textContent = currentName;
+  // Reset fields
+  ['cod-cat','cod-type'].forEach(id => document.getElementById(id).value = '');
+  ['cod-macro-num','cod-proc-num','cod-sub-num','cod-desc'].forEach(id => document.getElementById(id).value = '');
+  updateCode();
+  openModal('modal-codificar');
+}
+
+function updateCode() {
+  const cat = document.getElementById('cod-cat').value;
+  const macro = document.getElementById('cod-macro-num').value.trim();
+  const proc = document.getElementById('cod-proc-num').value.trim();
+  const sub = document.getElementById('cod-sub-num').value.trim();
+  const type = document.getElementById('cod-type').value;
+  const desc = document.getElementById('cod-desc').value.trim().toUpperCase().replace(/\s+/g,'_');
+
+  let parts = [];
+
+  // Bloque 1
+  if (cat || macro) parts.push((cat || '') + (macro || ''));
+
+  // Bloque 2
+  if (proc) parts.push('P' + proc);
+
+  // Bloque 3
+  if (sub) parts.push('S' + sub);
+
+  let code = parts.join('-');
+
+  // Bloque 4 + descripción
+  if (type) code = code ? code + '_' + type : type;
+  if (desc) code = code ? code + '_' + desc : desc;
+
+  // Append extension if renaming a file
+  let display = code || '—';
+  if (code && codTarget && codTarget.type === 'file') {
+    const ext = codTarget.name.includes('.') ? '.' + codTarget.name.split('.').pop() : '';
+    display = code + ext;
+  }
+
+  document.getElementById('cod-preview-val').textContent = display;
+}
+
+async function applyCodification() {
+  const display = document.getElementById('cod-preview-val').textContent.trim();
+  if (!display || display === '—') {
+    toast('Introduce al menos un campo para generar el nombre.', 'error');
+    return;
+  }
+
+  closeModal('modal-codificar');
+
+  if (codTarget) {
+    await renameNode(codTarget, display);
+  } else {
+    const target = getTargetFolder();
+    if (!target) return;
+    try {
+      await target.handle.getDirectoryHandle(display, { create: true });
+      toast('Carpeta codificada creada: ' + display, 'success');
+      await refreshTree();
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREE HELPERS
+// ═══════════════════════════════════════════════════════════
+function collapseAll() {
+  function closeAll(nodes) { nodes.forEach(n => { n.open = false; if(n.children) closeAll(n.children); }); }
+  closeAll(tree);
+  renderTree();
+}
+
+function expandAll() {
+  function openAll(nodes) { nodes.forEach(n => { n.open = true; if(n.children) openAll(n.children); }); }
+  openAll(tree);
+  renderTree();
+}
+
+async function refreshTree() {
+  if (!rootHandle) return;
+  const prevOpen = {};
+  function collectOpen(nodes) { nodes.forEach(n => { if(n.open) prevOpen[n.path]=true; if(n.children) collectOpen(n.children); }); }
+  collectOpen(tree);
+
+  tree = await buildTree(rootHandle, rootHandle.name, null, null);
+
+  function restoreOpen(nodes) { nodes.forEach(n => { if(prevOpen[n.path]) n.open=true; if(n.children) restoreOpen(n.children); }); }
+  restoreOpen(tree);
+  renderTree();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.className = 'show ' + type;
+  document.getElementById('toast-msg').textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLOSE APP
+// ═══════════════════════════════════════════════════════════
+function closeApp() {
+  if (confirm('¿Cerrar la aplicación?')) window.close();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESIZE HANDLE
+// ═══════════════════════════════════════════════════════════
+const resizeHandle = document.getElementById('resize-handle');
+const leftPanel = document.getElementById('left');
+let isResizing = false;
+
+resizeHandle.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const newWidth = e.clientX;
+  if (newWidth > 180 && newWidth < 700) leftPanel.style.width = newWidth + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  isResizing = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ═══════════════════════════════════════════════════════════
+// CHECK API SUPPORT
+// ═══════════════════════════════════════════════════════════
+if (!window.showDirectoryPicker) {
+  document.getElementById('empty-state').innerHTML = `
+    <div class="logo">GC/</div>
+    <p style="color:var(--red)">⚠️ Tu navegador no soporta la <strong>File System Access API</strong>.<br>
+    Usa <strong>Google Chrome</strong> o <strong>Microsoft Edge</strong> para<br>acceder a carpetas del sistema.</p>
+  `;
+}
+</script>
+</body>
+</html>
