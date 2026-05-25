@@ -4,7 +4,8 @@ const API = '/api';
 let usuario = null;
 let arbolData = [];
 let docIdGenerado = null;
-let centroModificado = false;   // detecta cambios sin guardar en la config del centro
+let centroModificado = false;
+let centroSeleccionadoAdmin = null;   // id del centro seleccionado en panel admin
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ function fmtFecha(iso) {
 
 // ── Cierre de modales con ESC y clic en el fondo ──────────────────────────────
 
-const MODALES = ['modal-carpeta', 'modal-upload', 'modal-centro'];
+const MODALES = ['modal-carpeta', 'modal-renombrar', 'modal-upload', 'modal-centro', 'modal-usuario'];
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
@@ -66,7 +67,7 @@ function showSec(id) {
   if (id === 'dashboard')   cargarDashboard();
   if (id === 'centro')      cargarCentro();
   if (id === 'carpetas')    cargarArbol();
-  if (id === 'repositorio') { cargarDocumentos(); cargarCarpetasSelect('up-carpeta'); }
+  if (id === 'repositorio') { cargarDocumentos(); poblarFiltrosCarpeta(); }
   if (id === 'generador')   cargarCarpetasSelect('gen-carpeta');
   if (id === 'admin')       cargarAdmin();
 }
@@ -74,7 +75,6 @@ function showSec(id) {
 document.querySelectorAll('.nav-item[data-sec]').forEach(btn => {
   btn.addEventListener('click', () => {
     const destino = btn.dataset.sec;
-    // Avisa si hay cambios sin guardar en la config del centro
     if (centroModificado && document.getElementById('sec-centro')?.classList.contains('active') && destino !== 'centro') {
       if (!confirm('Tienes cambios sin guardar en la configuración. ¿Salir sin guardar?')) return;
       centroModificado = false;
@@ -125,8 +125,7 @@ document.getElementById('login-pass').addEventListener('keydown', e => {
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
   await apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
-  // Limpia estado en memoria antes de recargar
-  usuario = null; arbolData = []; docIdGenerado = null; centroModificado = false;
+  usuario = null; arbolData = []; docIdGenerado = null; centroModificado = false; centroSeleccionadoAdmin = null;
   location.reload();
 });
 
@@ -182,14 +181,12 @@ async function cargarCentro() {
   } catch {}
 }
 
-// Marca cambios sin guardar cuando el usuario edita cualquier campo
 ['c-nombre', 'c-codigo', 'c-anio', 'c-dir', 'c-tel', 'c-email'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', () => { centroModificado = true; });
 });
 
 document.getElementById('logo-preview').addEventListener('click', () => document.getElementById('logo-input').click());
 
-// FIX: un solo FileReader, bien conectado
 document.getElementById('logo-input').addEventListener('change', e => {
   const f = e.target.files[0];
   if (!f) return;
@@ -223,7 +220,7 @@ document.getElementById('btn-guardar-centro').addEventListener('click', async ()
 
 // ── Árbol SGC (F2) ────────────────────────────────────────────────────────────
 
-const nodosExpandidos = new Set();   // guarda IDs de nodos abiertos entre renders
+const nodosExpandidos = new Set();
 
 async function cargarArbol() {
   if (!usuario?.id_centro) return;
@@ -242,7 +239,6 @@ function renderArbol() {
     if (n.parent_id && mapa[n.parent_id]) mapa[n.parent_id].hijos.push(mapa[n.id]);
     else raices.push(mapa[n.id]);
   });
-  // Expande todos por defecto en el primer render
   if (nodosExpandidos.size === 0) raices.forEach(n => expandirRecursivo(n));
   root.innerHTML = '';
   raices.forEach(n => root.appendChild(crearNodo(n)));
@@ -258,7 +254,7 @@ function crearNodo(n) {
   li.className = 'tree-node';
   li.dataset.id = n.id;
 
-  const expandido = nodosExpandidos.has(n.id);
+  const expandido  = nodosExpandidos.has(n.id);
   const tieneHijos = n.hijos.length > 0;
 
   const row = document.createElement('div');
@@ -270,12 +266,11 @@ function crearNodo(n) {
     <span class="tree-icon">${tieneHijos ? '📂' : '📄'}</span>
     <span class="tree-name">${n.nombre}${n.codigo ? ` <span style="color:var(--mid);font-size:.72rem;">(${n.codigo})</span>` : ''}</span>
     <span class="tree-actions">
-      <button class="tree-btn" onclick="renombrarCarpeta(${n.id},'${n.nombre.replace(/'/g, "\\'")}')">✏</button>
+      <button class="tree-btn" onclick="abrirModalRenombrar(${n.id},'${n.nombre.replace(/'/g, "\\'")}')">✏</button>
       <button class="tree-btn" onclick="nuevaSubcarpeta(${n.id})">+</button>
       <button class="tree-btn" style="color:var(--error);" onclick="borrarCarpeta(${n.id})">✕</button>
     </span>`;
 
-  // Toggle expand/collapse al hacer clic en el icono de flecha o en el nombre
   row.querySelector('.tree-toggle').addEventListener('click', e => {
     e.stopPropagation();
     if (!tieneHijos) return;
@@ -283,7 +278,7 @@ function crearNodo(n) {
     else nodosExpandidos.add(n.id);
     renderArbol();
   });
-  row.querySelector('.tree-name').addEventListener('click', e => {
+  row.querySelector('.tree-name').addEventListener('click', () => {
     if (!tieneHijos) return;
     if (nodosExpandidos.has(n.id)) nodosExpandidos.delete(n.id);
     else nodosExpandidos.add(n.id);
@@ -337,12 +332,31 @@ document.getElementById('nc-nombre')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') crearCarpeta();
 });
 
-async function renombrarCarpeta(id, nombre) {
-  const nuevo = prompt('Nuevo nombre:', nombre);
-  if (!nuevo || nuevo === nombre) return;
-  await apiFetch(`/carpetas/${id}`, { method: 'PUT', body: { nombre: nuevo } });
-  cargarArbol();
+// Modal renombrar carpeta (reemplaza prompt nativo)
+let renombrarId = null;
+
+function abrirModalRenombrar(id, nombreActual) {
+  renombrarId = id;
+  document.getElementById('rn-nombre').value = nombreActual;
+  document.getElementById('modal-renombrar').style.display = 'flex';
+  document.getElementById('rn-nombre').focus();
 }
+
+document.getElementById('btn-cancel-renombrar').addEventListener('click', () => {
+  document.getElementById('modal-renombrar').style.display = 'none';
+});
+
+document.getElementById('btn-ok-renombrar').addEventListener('click', async () => {
+  const nuevo = document.getElementById('rn-nombre').value.trim();
+  if (!nuevo) return;
+  document.getElementById('modal-renombrar').style.display = 'none';
+  await apiFetch(`/carpetas/${renombrarId}`, { method: 'PUT', body: { nombre: nuevo } });
+  cargarArbol();
+});
+
+document.getElementById('rn-nombre')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-ok-renombrar').click();
+});
 
 async function borrarCarpeta(id) {
   if (!confirm('¿Eliminar esta carpeta y todas sus subcarpetas?')) return;
@@ -363,12 +377,41 @@ document.getElementById('btn-script-ps').addEventListener('click',   () => windo
 
 // ── Repositorio (F3) ──────────────────────────────────────────────────────────
 
+// Puebla el select de filtro por carpeta reutilizando arbolData en caché
+function poblarFiltrosCarpeta() {
+  const sel = document.getElementById('repo-filtro-carpeta');
+  if (!sel) return;
+  const nodos  = arbolData;
+  const mapa   = {};
+  nodos.forEach(n => { mapa[n.id] = { ...n, hijos: [] }; });
+  const raices = [];
+  nodos.forEach(n => {
+    if (n.parent_id && mapa[n.parent_id]) mapa[n.parent_id].hijos.push(mapa[n.id]);
+    else raices.push(mapa[n.id]);
+  });
+  const opciones = ['<option value="">— Todas las carpetas —</option>'];
+  function addOpts(lista, nivel) {
+    lista.forEach(n => {
+      opciones.push(`<option value="${n.id}">${'  '.repeat(nivel)}${n.nombre}</option>`);
+      addOpts(n.hijos, nivel + 1);
+    });
+  }
+  addOpts(raices, 0);
+  sel.innerHTML = opciones.join('');
+}
+
 async function cargarDocumentos(query = '') {
-  const tbody = document.getElementById('doc-tbody');
+  const tbody    = document.getElementById('doc-tbody');
+  const carpeta  = document.getElementById('repo-filtro-carpeta')?.value;
   try {
-    const docs = query
-      ? await apiFetch(`/documentos/buscar?q=${encodeURIComponent(query)}`)
-      : await apiFetch('/documentos');
+    let docs;
+    if (query) {
+      docs = await apiFetch(`/documentos/buscar?q=${encodeURIComponent(query)}`);
+    } else if (carpeta) {
+      docs = await apiFetch(`/documentos?carpeta=${encodeURIComponent(carpeta)}`);
+    } else {
+      docs = await apiFetch('/documentos');
+    }
     tbody.innerHTML = docs.length
       ? docs.map(d => `<tr>
           <td>
@@ -376,7 +419,13 @@ async function cargarDocumentos(query = '') {
             ${d.codigo ? `<br><span style="font-size:.74rem;color:var(--mid);font-family:'DM Mono',monospace;">${d.codigo}</span>` : ''}
           </td>
           <td>${d.tipo || '—'}</td>
-          <td><span class="badge badge-${d.estado}">${d.estado}</span></td>
+          <td>
+            <select class="estado-select" data-id="${d.id}" style="font-size:.78rem;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--paper);cursor:pointer;">
+              <option value="borrador"  ${d.estado==='borrador'  ? 'selected':''}>Borrador</option>
+              <option value="vigente"   ${d.estado==='vigente'   ? 'selected':''}>Vigente</option>
+              <option value="obsoleto"  ${d.estado==='obsoleto'  ? 'selected':''}>Obsoleto</option>
+            </select>
+          </td>
           <td>${d.version}</td>
           <td>${fmtFecha(d.updated_at)}</td>
           <td><div class="actions">
@@ -385,6 +434,17 @@ async function cargarDocumentos(query = '') {
           </div></td>
         </tr>`).join('')
       : '<tr><td colspan="6" style="color:var(--mid);text-align:center;padding:20px;">Sin documentos</td></tr>';
+
+    // Escucha cambios de estado en los selects recién creados
+    tbody.querySelectorAll('.estado-select').forEach(sel => {
+      sel.addEventListener('change', async e => {
+        const id     = e.target.dataset.id;
+        const estado = e.target.value;
+        try {
+          await apiFetch(`/documentos/${id}`, { method: 'PUT', body: { estado } });
+        } catch (err) { showMsg('', err.message); cargarDocumentos(query); }
+      });
+    });
   } catch {}
 }
 
@@ -393,6 +453,17 @@ document.getElementById('btn-buscar').addEventListener('click', () => {
 });
 document.getElementById('repo-buscar').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-buscar').click();
+});
+
+document.getElementById('btn-limpiar-buscar').addEventListener('click', () => {
+  document.getElementById('repo-buscar').value = '';
+  document.getElementById('repo-filtro-carpeta').value = '';
+  cargarDocumentos();
+});
+
+document.getElementById('repo-filtro-carpeta')?.addEventListener('change', () => {
+  document.getElementById('repo-buscar').value = '';
+  cargarDocumentos();
 });
 
 function descargarDoc(id) { window.open(`/api/documentos/${id}/descargar`, '_blank'); }
@@ -410,6 +481,7 @@ document.getElementById('btn-subir-doc').addEventListener('click', () => {
   document.getElementById('up-nombre').value = '';
   document.getElementById('upload-msg').classList.remove('show');
   document.getElementById('modal-upload').style.display = 'flex';
+  cargarCarpetasSelect('up-carpeta');
 });
 document.getElementById('btn-cancel-upload').addEventListener('click', () => {
   document.getElementById('modal-upload').style.display = 'none';
@@ -447,7 +519,7 @@ document.getElementById('btn-ok-upload').addEventListener('click', async () => {
     fd.append('nombre',   document.getElementById('up-nombre').value  || uploadFile.name);
     fd.append('codigo',   document.getElementById('up-codigo').value);
     fd.append('estado',   document.getElementById('up-estado').value);
-    fd.append('tipo',     document.getElementById('up-tipo').value);   // campo tipo
+    fd.append('tipo',     document.getElementById('up-tipo').value);
     const carpeta = document.getElementById('up-carpeta').value;
     if (carpeta) fd.append('id_carpeta', carpeta);
     await apiFetch('/documentos', { method: 'POST', body: fd });
@@ -463,7 +535,6 @@ document.getElementById('btn-ok-upload').addEventListener('click', async () => {
 let analizarTimer = null;
 let analizarAbort = null;
 
-// Debounce de 400 ms + cancela petición anterior si el usuario sigue escribiendo
 document.getElementById('gen-nombre').addEventListener('input', () => {
   clearTimeout(analizarTimer);
   if (analizarAbort) { analizarAbort.abort(); analizarAbort = null; }
@@ -479,7 +550,6 @@ document.getElementById('gen-nombre').addEventListener('input', () => {
         credentials: 'include',
         signal: analizarAbort.signal,
       }).then(r => r.json());
-      // Solo actualiza si el campo sigue teniendo el mismo valor
       if (document.getElementById('gen-nombre').value.trim() === nombre) {
         document.getElementById('gen-analisis').style.display = 'block';
         document.getElementById('gen-chips').innerHTML =
@@ -499,7 +569,6 @@ document.getElementById('btn-generar').addEventListener('click', async () => {
   btn.textContent = '⏳ Generando…';
   document.getElementById('gen-result-panel').style.display = 'none';
 
-  // Timeout de 90 s: Claude puede tardar en documentos largos
   const abort   = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 90_000);
 
@@ -560,7 +629,7 @@ async function cargarAdmin() {
       stat(data.vigentes, 'Vigentes') + stat(data.borradores, 'Borradores');
 
     document.getElementById('centros-tbody').innerHTML = data.porCentro.length
-      ? data.porCentro.map(c => `<tr>
+      ? data.porCentro.map(c => `<tr data-id="${c.id}" data-nombre="${c.nombre}">
           <td><strong>${c.nombre}</strong></td>
           <td style="font-family:'DM Mono',monospace;font-size:.82rem;">${c.codigo}</td>
           <td>${c.num_usuarios}</td>
@@ -568,9 +637,69 @@ async function cargarAdmin() {
           <td>${c.num_carpetas}</td>
         </tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--mid);padding:16px;">Sin centros aún</td></tr>';
+
+    // Clic en fila de centro → muestra usuarios
+    document.querySelectorAll('#centros-tbody tr[data-id]').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const id     = parseInt(tr.dataset.id, 10);
+        const nombre = tr.dataset.nombre;
+        document.querySelectorAll('#centros-tbody tr').forEach(r => r.classList.remove('selected'));
+        if (centroSeleccionadoAdmin === id) {
+          centroSeleccionadoAdmin = null;
+          document.getElementById('panel-usuarios-centro').style.display = 'none';
+        } else {
+          tr.classList.add('selected');
+          centroSeleccionadoAdmin = id;
+          cargarUsuariosCentro(id, nombre);
+        }
+      });
+    });
+
+    // Si había un centro seleccionado, refresca su lista
+    if (centroSeleccionadoAdmin) {
+      const tr = document.querySelector(`#centros-tbody tr[data-id="${centroSeleccionadoAdmin}"]`);
+      if (tr) { tr.classList.add('selected'); cargarUsuariosCentro(centroSeleccionadoAdmin, tr.dataset.nombre); }
+    }
   } catch {}
 }
 
+async function cargarUsuariosCentro(id, nombre) {
+  document.getElementById('panel-usuarios-centro').style.display = 'block';
+  document.getElementById('panel-usuarios-titulo').innerHTML =
+    `👥 Usuarios de <strong>${nombre}</strong>
+     <button class="btn-sm" id="btn-nuevo-usuario" style="margin-left:auto;" onclick="abrirModalUsuario(${id})">+ Nuevo usuario</button>`;
+
+  try {
+    const usuarios = await apiFetch(`/admin/centros/${id}/usuarios`);
+    document.getElementById('usuarios-tbody').innerHTML = usuarios.length
+      ? usuarios.map(u => `<tr>
+          <td>${u.nombre}</td>
+          <td style="font-family:'DM Mono',monospace;font-size:.82rem;">${u.email}</td>
+          <td><span class="badge badge-${u.rol === 'admin_centro' ? 'vigente' : u.rol === 'docente' ? 'borrador' : 'obsoleto'}" style="font-size:.72rem;">${u.rol}</span></td>
+          <td>${u.activo ? '<span style="color:var(--success);">Activo</span>' : '<span style="color:var(--mid);">Inactivo</span>'}</td>
+          <td><div class="actions">
+            <button class="btn btn-outline" style="padding:3px 8px;font-size:.75rem;" onclick="toggleUsuario(${u.id}, ${id}, '${nombre}')">
+              ${u.activo ? 'Desactivar' : 'Activar'}
+            </button>
+            <button class="btn btn-danger" style="padding:3px 8px;font-size:.75rem;" onclick="eliminarUsuario(${u.id}, ${id}, '${nombre}')">✕</button>
+          </div></td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--mid);padding:12px;">Sin usuarios</td></tr>';
+  } catch {}
+}
+
+async function toggleUsuario(uid, centroId, centroNombre) {
+  await apiFetch(`/admin/usuarios/${uid}/toggle`, { method: 'PUT' }).catch(() => {});
+  cargarUsuariosCentro(centroId, centroNombre);
+}
+
+async function eliminarUsuario(uid, centroId, centroNombre) {
+  if (!confirm('¿Eliminar este usuario?')) return;
+  await apiFetch(`/admin/usuarios/${uid}`, { method: 'DELETE' }).catch(() => {});
+  cargarUsuariosCentro(centroId, centroNombre);
+}
+
+// Modal nuevo centro
 document.getElementById('btn-nuevo-centro').addEventListener('click', () => {
   ['nc2-nombre','nc2-codigo','nc2-email','nc2-anio','nc2-admin-nombre','nc2-admin-email','nc2-admin-pass']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -610,13 +739,45 @@ document.getElementById('btn-ok-centro').addEventListener('click', async () => {
   finally { btn.disabled = false; }
 });
 
+// Modal nuevo usuario desde panel de centro
+function abrirModalUsuario(centroId) {
+  ['nu-nombre','nu-email','nu-pass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('nu-msg')?.classList.remove('show');
+  document.getElementById('modal-usuario').dataset.centroId = centroId;
+  document.getElementById('modal-usuario').style.display = 'flex';
+}
+
+document.getElementById('btn-cancel-usuario').addEventListener('click', () => {
+  document.getElementById('modal-usuario').style.display = 'none';
+});
+
+document.getElementById('btn-ok-usuario').addEventListener('click', async () => {
+  const centroId = document.getElementById('modal-usuario').dataset.centroId;
+  const nombre   = document.getElementById('nu-nombre').value.trim();
+  const email    = document.getElementById('nu-email').value.trim();
+  const pass     = document.getElementById('nu-pass').value;
+  const rol      = document.getElementById('nu-rol').value;
+  if (!nombre || !email || !pass) return showMsg('nu-msg', 'Nombre, email y contraseña son obligatorios');
+
+  const btn = document.getElementById('btn-ok-usuario');
+  btn.disabled = true;
+  try {
+    await apiFetch(`/admin/centros/${centroId}/usuarios`, { method: 'POST', body: { nombre, email, password: pass, rol } });
+    document.getElementById('modal-usuario').style.display = 'none';
+    const tr = document.querySelector(`#centros-tbody tr[data-id="${centroId}"]`);
+    cargarUsuariosCentro(parseInt(centroId, 10), tr?.dataset.nombre || '');
+  } catch (err) { showMsg('nu-msg', err.message); }
+  finally { btn.disabled = false; }
+});
+
 // ── Helpers compartidos ───────────────────────────────────────────────────────
 
+// Usa arbolData en caché si ya está cargado; si no, lo pide
 async function cargarCarpetasSelect(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel || !usuario?.id_centro) return;
   try {
-    const nodos = await apiFetch('/carpetas');
+    const nodos = arbolData.length ? arbolData : await apiFetch('/carpetas');
     const mapa  = {};
     nodos.forEach(n => { mapa[n.id] = { ...n, hijos: [] }; });
     const raices = [];
@@ -627,7 +788,7 @@ async function cargarCarpetasSelect(selectId) {
     const opciones = ['<option value="">— Sin carpeta —</option>'];
     function addOpts(lista, nivel) {
       lista.forEach(n => {
-        opciones.push(`<option value="${n.id}">${'  '.repeat(nivel)}${n.nombre}</option>`);
+        opciones.push(`<option value="${n.id}">${'  '.repeat(nivel)}${n.nombre}</option>`);
         addOpts(n.hijos, nivel + 1);
       });
     }

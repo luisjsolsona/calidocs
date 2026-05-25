@@ -127,6 +127,11 @@ textarea{min-height:80px;resize:vertical;}
 #logo-preview img{width:100%;height:100%;object-fit:contain;}
 #logo-preview span{font-size:.72rem;color:var(--mid);text-align:center;padding:6px;}
 
+/* ── FILA CENTRO CLICKEABLE ── */
+#centros-tbody tr{cursor:pointer;}
+#centros-tbody tr:hover td{background:#eff6ff;}
+#centros-tbody tr.selected td{background:#dbeafe;}
+
 /* ── TOGGLE ── */
 .toggle{position:relative;display:inline-block;width:36px;height:20px;}
 .toggle input{opacity:0;width:0;height:0;}
@@ -265,6 +270,18 @@ textarea{min-height:80px;resize:vertical;}
       </div>
     </div>
 
+      <!-- Modal renombrar carpeta -->
+      <div id="modal-renombrar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+          <div style="font-weight:600;margin-bottom:16px;">Renombrar carpeta</div>
+          <div style="margin-bottom:16px;"><label>Nombre</label><input type="text" id="rn-nombre"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn btn-outline" id="btn-cancel-renombrar">Cancelar</button>
+            <button class="btn btn-primary" id="btn-ok-renombrar">Guardar</button>
+          </div>
+        </div>
+      </div>
+
     <!-- Repositorio (F3) -->
     <div class="sec" id="sec-repositorio">
       <div class="page-title">Repositorio de documentos</div>
@@ -272,6 +289,8 @@ textarea{min-height:80px;resize:vertical;}
       <div class="search-bar">
         <input type="text" id="repo-buscar" placeholder="Buscar documentos…">
         <button class="btn btn-primary" id="btn-buscar">Buscar</button>
+        <button class="btn btn-outline" id="btn-limpiar-buscar">✕ Limpiar</button>
+        <select id="repo-filtro-carpeta" style="flex:0 0 220px;"><option value="">— Todas las carpetas —</option></select>
         <button class="btn btn-outline" id="btn-subir-doc">+ Subir documento</button>
       </div>
 
@@ -320,7 +339,7 @@ textarea{min-height:80px;resize:vertical;}
         <div class="panel-body" style="padding:0;">
           <table class="doc-table">
             <thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th>Versión</th><th>Fecha</th><th></th></tr></thead>
-            <tbody id="doc-tbody"></tbody>
+            <tbody id="doc-tbody"><tr><td colspan="6" style="color:var(--mid);text-align:center;padding:20px;">Cargando…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -403,12 +422,47 @@ textarea{min-height:80px;resize:vertical;}
       </div>
       <!-- Tabla de centros -->
       <div class="panel">
-        <div class="panel-head">🏫 Centros</div>
+        <div class="panel-head">🏫 Centros <span style="font-weight:300;opacity:.6;font-size:.72rem;margin-left:6px;">Clic en una fila para ver usuarios</span></div>
         <div class="panel-body" style="padding:0;">
           <table class="doc-table" id="centros-table">
             <thead><tr><th>Centro</th><th>Código</th><th>Usuarios</th><th>Documentos</th><th>Carpetas</th></tr></thead>
             <tbody id="centros-tbody"></tbody>
           </table>
+        </div>
+      </div>
+      <!-- Panel usuarios del centro (desplegable) -->
+      <div id="panel-usuarios-centro" class="panel" style="display:none;">
+        <div class="panel-head" id="panel-usuarios-titulo">👥 Usuarios</div>
+        <div class="panel-body" style="padding:0;">
+          <table class="doc-table">
+            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="usuarios-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal nuevo usuario -->
+      <div id="modal-usuario" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+          <div style="font-weight:600;margin-bottom:16px;">Nuevo usuario</div>
+          <div id="nu-msg" class="msg err"></div>
+          <div class="form-grid">
+            <div><label>Nombre</label><input type="text" id="nu-nombre"></div>
+            <div><label>Email</label><input type="email" id="nu-email"></div>
+            <div><label>Contraseña</label><input type="password" id="nu-pass"></div>
+            <div><label>Rol</label>
+              <select id="nu-rol">
+                <option value="admin_centro">admin_centro</option>
+                <option value="coordinador_calidad">coordinador_calidad</option>
+                <option value="docente" selected>docente</option>
+                <option value="invitado">invitado</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" id="btn-cancel-usuario">Cancelar</button>
+            <button class="btn btn-primary" id="btn-ok-usuario">Crear usuario</button>
+          </div>
         </div>
       </div>
     </div>

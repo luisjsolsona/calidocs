@@ -33,6 +33,8 @@ async function createUsuario(req, res, next) {
     const { nombre, email, password, rol } = req.body;
     if (!nombre || !email || !password || !rol)
       return res.status(400).json({ error: 'nombre, email, password y rol son obligatorios' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return res.status(400).json({ error: 'Formato de email inválido' });
 
     const rolesValidos = ['admin_centro', 'coordinador_calidad', 'docente', 'invitado'];
     if (!rolesValidos.includes(rol))

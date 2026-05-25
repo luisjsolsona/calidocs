@@ -45,6 +45,8 @@ function deleteCarpeta(req, res, next) {
 function resetArbol(req, res, next) {
   try {
     const id_centro = req.usuario.id_centro;
+    // Desvincula documentos para no dejar FKs rotas
+    db.prepare('UPDATE documentos SET id_carpeta = NULL WHERE id_centro = ?').run(id_centro);
     db.prepare('DELETE FROM carpetas WHERE id_centro = ?').run(id_centro);
     insertarArbol(db, id_centro, require('../services/carpetas.seed').ARBOL_SGC);
     res.json({ ok: true, arbol: Carpeta.arbol(id_centro) });
@@ -60,9 +62,11 @@ function getScript(req, res) {
   // Reconstruye rutas completas desde el árbol plano
   const map = {};
   nodos.forEach(n => { map[n.id] = n; });
-  function ruta(n) {
-    if (!n.parent_id) return n.nombre;
-    return ruta(map[n.parent_id]) + '/' + n.nombre;
+  function ruta(n, visitados = new Set()) {
+    if (visitados.has(n.id)) return n.nombre;
+    visitados.add(n.id);
+    if (!n.parent_id || !map[n.parent_id]) return n.nombre;
+    return ruta(map[n.parent_id], visitados) + '/' + n.nombre;
   }
 
   const rutas = nodos.map(n => ruta(n));

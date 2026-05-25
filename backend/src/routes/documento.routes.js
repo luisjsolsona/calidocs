@@ -5,7 +5,7 @@ const ctrl   = require('../controllers/documento.controller');
 const { requireAuth } = require('../middleware/auth');
 const { requireRol }  = require('../middleware/roles');
 
-const upload = multer({ dest: os.tmpdir() });
+const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get('/',              requireAuth, ctrl.listDocumentos);
 router.get('/buscar',        requireAuth, ctrl.buscarDocumentos);

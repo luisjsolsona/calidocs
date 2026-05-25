@@ -14,10 +14,10 @@ const Documento = {
     return db.prepare(q).all(...params);
   },
 
-  listByCarpeta(id_carpeta) {
+  listByCarpeta(id_carpeta, id_centro) {
     return db.prepare(`
-      SELECT * FROM documentos WHERE id_carpeta = ? ORDER BY nombre
-    `).all(id_carpeta);
+      SELECT * FROM documentos WHERE id_carpeta = ? AND id_centro = ? ORDER BY nombre
+    `).all(id_carpeta, id_centro);
   },
 
   // Búsqueda fuzzy por nombre y código (SQLite LIKE)

@@ -4,7 +4,7 @@ const { generarDocx } = require('../services/docx.service');
 const Documento = require('../models/documento.model');
 const Centro    = require('../models/centro.model');
 
-const DOCS_ROOT = process.env.DOCS_PATH || '/app/data/docs';
+const DOCS_ROOT = path.resolve(process.env.DOCS_PATH || '/app/data/docs');
 
 // POST /api/generador
 // Body: { nombre, id_carpeta? }

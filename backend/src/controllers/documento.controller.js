@@ -27,7 +27,7 @@ function listDocumentos(req, res) {
   if (carpeta !== undefined) {
     const carpetaId = parseInt(carpeta, 10);
     if (isNaN(carpetaId)) return res.status(400).json({ error: 'id de carpeta inválido' });
-    return res.json(Documento.listByCarpeta(carpetaId));
+    return res.json(Documento.listByCarpeta(carpetaId, id_centro));
   }
 
   res.json(Documento.listByCentro(id_centro, { estado, tipo }));
